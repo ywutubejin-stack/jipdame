@@ -308,20 +308,20 @@ body{background:#07090f;}
     <div class="ob-card-title"><span>💰</span> 보유 자산 & 소득</div>
     <div class="sl-row">
       <div class="sl-label">보유 자산</div>
-      <div class="sl-wrap"><input type="range" class="sl" min="1000" max="200000" step="1000" value="30000" id="slAsset"></div>
-      <input type="number" class="sl-input" id="inAsset" value="3" min="0.1" max="20" step="0.1" style="width:60px">
+      <div class="sl-wrap"><input type="range" class="sl" min="1000" max="200000" step="1000" value="30000" id="sl-asset"></div>
+      <input type="number" class="sl-input" id="in-asset" value="3" min="0.1" max="20" step="0.1" style="width:60px">
       <span class="sl-unit">억</span>
     </div>
     <div class="sl-row">
       <div class="sl-label">연 소득</div>
-      <div class="sl-wrap"><input type="range" class="sl" min="1000" max="50000" step="500" value="6000" id="slIncome"></div>
-      <input type="number" class="sl-input" id="inIncome" value="6000" min="1000" max="50000" step="500" style="width:68px">
+      <div class="sl-wrap"><input type="range" class="sl" min="1000" max="50000" step="500" value="6000" id="sl-income"></div>
+      <input type="number" class="sl-input" id="in-income" value="6000" min="1000" max="50000" step="500" style="width:68px">
       <span class="sl-unit">만원</span>
     </div>
     <div class="sl-row" style="margin-bottom:0">
       <div class="sl-label">금리</div>
-      <div class="sl-wrap"><input type="range" class="sl" min="2" max="8" step="0.1" value="3.6" id="slRate"></div>
-      <input type="number" class="sl-input" id="inRate" value="3.6" min="2" max="8" step="0.1" style="width:52px">
+      <div class="sl-wrap"><input type="range" class="sl" min="2" max="8" step="0.1" value="3.6" id="sl-rate"></div>
+      <input type="number" class="sl-input" id="in-rate" value="3.6" min="2" max="8" step="0.1" style="width:52px">
       <span class="sl-unit">%</span>
     </div>
   </div>
@@ -536,9 +536,9 @@ function updateSliderUI() {
   if($('vAsset'))   $('vAsset').textContent  = a>=10000?(a/10000).toFixed(1)+'억':a.toLocaleString()+'만'
   if($('vIncome'))  $('vIncome').textContent = i.toLocaleString()+'만'
   if($('vRate'))    $('vRate').textContent   = rt+'%'
-  if($('inAsset'))  $('inAsset').value  = (a/10000).toFixed(1)
-  if($('inIncome')) $('inIncome').value = i
-  if($('inRate'))   $('inRate').value   = rt
+  if($('in-asset'))  $('in-asset').value  = (a/10000).toFixed(1)
+  if($('in-income')) $('in-income').value = i
+  if($('in-rate'))   $('in-rate').value   = rt
   if($('powerMain')) $('powerMain').textContent = fmt(state.power*10000)
   if($('pbAsset'))   $('pbAsset').textContent   = fmt(state.asset*10000)
   if($('pbLoan'))    $('pbLoan').textContent     = fmt(state.maxLoan*10000)
@@ -903,8 +903,8 @@ function initChips() {
 /* ── 초기화 ── */
 window.addEventListener('DOMContentLoaded', () => {
   // 슬라이더 ↔ 입력칸 동기화
-  const sl = { asset:$('slAsset'), income:$('slIncome'), rate:$('slRate') }
-  const inp = { asset:$('inAsset'), income:$('inIncome'), rate:$('inRate') }
+  const sl = { asset:$('sl-asset'), income:$('sl-income'), rate:$('sl-rate') }
+  const inp = { asset:$('in-asset'), income:$('in-income'), rate:$('in-rate') }
 
   const syncSl = (key, min, max, parse) => {
     const fromSlider = () => {
