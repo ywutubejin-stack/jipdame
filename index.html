@@ -309,19 +309,19 @@ body{background:#07090f;}
     <div class="sl-row">
       <div class="sl-label">보유 자산</div>
       <div class="sl-wrap"><input type="range" class="sl" min="1000" max="200000" step="1000" value="30000" id="sl-asset"></div>
-      <input type="number" class="sl-input" id="in-asset" value="3" min="0.1" max="20" step="0.1" style="width:60px">
+      <input type="text" class="sl-input" id="in-asset" value="3" placeholder="3" style="width:60px">
       <span class="sl-unit">억</span>
     </div>
     <div class="sl-row">
       <div class="sl-label">연 소득</div>
       <div class="sl-wrap"><input type="range" class="sl" min="1000" max="50000" step="500" value="6000" id="sl-income"></div>
-      <input type="number" class="sl-input" id="in-income" value="6000" min="1000" max="50000" step="500" style="width:68px">
+      <input type="text" class="sl-input" id="in-income" value="6000" placeholder="6000" style="width:68px">
       <span class="sl-unit">만원</span>
     </div>
     <div class="sl-row" style="margin-bottom:0">
       <div class="sl-label">금리</div>
       <div class="sl-wrap"><input type="range" class="sl" min="2" max="8" step="0.1" value="3.6" id="sl-rate"></div>
-      <input type="number" class="sl-input" id="in-rate" value="3.6" min="2" max="8" step="0.1" style="width:52px">
+      <input type="text" class="sl-input" id="in-rate" value="3.6" placeholder="3.6" style="width:52px">
       <span class="sl-unit">%</span>
     </div>
   </div>
@@ -915,10 +915,11 @@ window.addEventListener('DOMContentLoaded', () => {
       updateSliderUI()
     }
     const fromInput = () => {
-      let raw = parse(inp[key]?.value||'0')
+      const raw = parseFloat((inp[key]?.value||'0').replace(/[^0-9.]/g,'')) || 0
       // 보유자산은 억→만원 변환
-      let v = key==='asset' ? Math.round(raw * 10000) : raw
-      v = Math.min(Math.max(v||min, min), max)
+      let v = key==='asset' ? Math.round(raw * 10000) : Math.round(raw)
+      if(v < min) v = min
+      if(v > max) v = max
       state[key] = v
       if(sl[key]) sl[key].value = v
       updateSliderUI()
@@ -929,7 +930,7 @@ window.addEventListener('DOMContentLoaded', () => {
     inp[key]?.addEventListener('change', fromInput)
   }
   syncSl('asset',  1000,   200000, parseInt)
-  syncSl('income', 1000,   50000,  parseInt)
+  syncSl('income', 100,    50000,  parseInt)
   syncSl('rate',   2,      8,      parseFloat)
 
   // 탭 버튼
