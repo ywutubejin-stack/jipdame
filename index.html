@@ -309,19 +309,19 @@ body{background:#07090f;}
     <div class="sl-row">
       <div class="sl-label">보유 자산</div>
       <div class="sl-wrap"><input type="range" class="sl" min="1000" max="200000" step="1000" value="30000" id="slAsset"></div>
-      <input type="number" class="sl-input" id="inAsset" value="30000" min="1000" max="200000" step="1000">
-      <span class="sl-unit">만원</span>
+      <input type="number" class="sl-input" id="inAsset" value="3" min="0.1" max="20" step="0.1" style="width:60px">
+      <span class="sl-unit">억</span>
     </div>
     <div class="sl-row">
       <div class="sl-label">연 소득</div>
       <div class="sl-wrap"><input type="range" class="sl" min="1000" max="50000" step="500" value="6000" id="slIncome"></div>
-      <input type="number" class="sl-input" id="inIncome" value="6000" min="1000" max="50000" step="500">
+      <input type="number" class="sl-input" id="inIncome" value="6000" min="1000" max="50000" step="500" style="width:68px">
       <span class="sl-unit">만원</span>
     </div>
     <div class="sl-row" style="margin-bottom:0">
       <div class="sl-label">금리</div>
       <div class="sl-wrap"><input type="range" class="sl" min="2" max="8" step="0.1" value="3.6" id="slRate"></div>
-      <input type="number" class="sl-input" id="inRate" value="3.6" min="2" max="8" step="0.1">
+      <input type="number" class="sl-input" id="inRate" value="3.6" min="2" max="8" step="0.1" style="width:52px">
       <span class="sl-unit">%</span>
     </div>
   </div>
@@ -536,7 +536,7 @@ function updateSliderUI() {
   if($('vAsset'))   $('vAsset').textContent  = a>=10000?(a/10000).toFixed(1)+'억':a.toLocaleString()+'만'
   if($('vIncome'))  $('vIncome').textContent = i.toLocaleString()+'만'
   if($('vRate'))    $('vRate').textContent   = rt+'%'
-  if($('inAsset'))  $('inAsset').value  = a
+  if($('inAsset'))  $('inAsset').value  = (a/10000).toFixed(1)
   if($('inIncome')) $('inIncome').value = i
   if($('inRate'))   $('inRate').value   = rt
   if($('powerMain')) $('powerMain').textContent = fmt(state.power*10000)
@@ -910,11 +910,15 @@ window.addEventListener('DOMContentLoaded', () => {
     const fromSlider = () => {
       const v = Math.min(Math.max(parse(sl[key]?.value)||min, min), max)
       state[key] = v
-      if(inp[key]) inp[key].value = v
+      // 보유자산은 억 단위로 표시
+      if(inp[key]) inp[key].value = key==='asset' ? (v/10000).toFixed(1) : v
       updateSliderUI()
     }
     const fromInput = () => {
-      const v = Math.min(Math.max(parse(inp[key]?.value)||min, min), max)
+      let raw = parse(inp[key]?.value||'0')
+      // 보유자산은 억→만원 변환
+      let v = key==='asset' ? Math.round(raw * 10000) : raw
+      v = Math.min(Math.max(v||min, min), max)
       state[key] = v
       if(sl[key]) sl[key].value = v
       updateSliderUI()
