@@ -1257,8 +1257,22 @@ function initChips() {
   })
   document.querySelectorAll('#sizeChips button').forEach(btn=>{
     btn.addEventListener('click',function(){
-      document.querySelectorAll('#sizeChips button').forEach(b=>b.classList.remove('on'))
-      this.classList.add('on'); state.sizes=[this.dataset.s]
+      const s = this.dataset.s
+      if(s === 'all') {
+        document.querySelectorAll('#sizeChips button').forEach(b=>b.classList.remove('on'))
+        this.classList.add('on')
+        state.sizes = ['all']
+      } else {
+        document.querySelector('#sizeChips [data-s="all"]')?.classList.remove('on')
+        this.classList.toggle('on')
+        const selected = [...document.querySelectorAll('#sizeChips button.on')].map(b=>b.dataset.s).filter(x=>x!=='all')
+        if(!selected.length) {
+          document.querySelector('#sizeChips [data-s="all"]')?.classList.add('on')
+          state.sizes = ['all']
+        } else {
+          state.sizes = selected
+        }
+      }
     })
   })
 }
