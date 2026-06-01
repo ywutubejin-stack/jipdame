@@ -658,6 +658,39 @@ const state = {
   regions:['서울'], sizes:['30'], favorites:[],
 }
 
+/* ── 공통 단지 점수 계산 ── */
+function calcAptScore(apt) {
+  const price    = apt.avgPrice || 0
+  const minPrice = apt.minPrice || price
+  const maxPrice = apt.maxPrice || price
+  const built    = parseInt(apt.built) || 2000
+  const age      = 2025 - built
+  const count    = apt.count || 0
+  const jsr      = apt.jeonseRatio || 0
+  const sg       = apt.sigungu || apt.dong || ''
+  const r2=3.6/100/12, n2=30*12
+  const h        = state.houseCount || 0
+  const superSpec= ['강남구','서초구','송파구','용산구'].some(z=>sg.includes(z))
+  const isSeoul  = sg.includes('서울')
+  const ltvR     = superSpec?(h===0?.5:h===1?.3:0):isSeoul?(h===0?.7:h===1?.6:.5):.7
+  const ltvL     = price<=900000000?price*ltvR:900000000*ltvR+(price-900000000)*Math.max(ltvR-.1,0)
+  const dsrL     = (state.income*10000)/12*.4/(r2*(1+r2)**n2/((1+r2)**n2-1))
+  const loan     = Math.min(ltvL, dsrL)
+  const power    = state.asset*10000 + loan
+  const canBuy   = !(superSpec&&h>=2) && power >= price
+
+  let score = 50
+  if(maxPrice > minPrice*1.05) score += 12; else score += 5
+  if(jsr>=70) score+=15; else if(jsr>=55) score+=10; else if(jsr>=40) score+=3; else if(jsr>0) score-=5
+  if(count>=10) score+=15; else if(count>=5) score+=8; else score-=5
+  if(age<=5) score+=15; else if(age<=10) score+=10; else if(age<=20) score+=5; else score-=5
+  if(['강남구','서초구','송파구','용산구'].some(z=>sg.includes(z))) score+=15
+  else if(['성동구','마포구','광진구','영등포구'].some(z=>sg.includes(z))) score+=10
+  else if(isSeoul) score+=5
+  if(canBuy) score+=10; else score-=10
+  return Math.min(Math.max(score, 20), 95)
+}
+
 /* ── 구매력 계산 ── */
 function calcPower() {
   const r = state.rate/100/12, n = 30*12
@@ -746,7 +779,7 @@ function openSheet(apt) {
   if($('dtDongCnt'))   $('dtDongCnt').textContent   = apt.dong_cnt ? apt.dong_cnt+'개 동' : '—'
   if($('dtFloor'))     $('dtFloor').textContent     = '—'
   if($('dtHeat'))      $('dtHeat').textContent      = '—'
-  if($('dtScore'))     $('dtScore').textContent     = apt._score ? apt._score+'점' : '—'
+  if($('dtScore')) { const s = apt._score || calcAptScore(apt); $('dtScore').textContent = s+'점'; $('dtScore').style.color = s>=80?'var(--up)':s>=60?'var(--gold)':'var(--muted)' }
 
   // 단지 기본정보 API 조회
   if(apt.sggCd && apt.name) {
@@ -869,21 +902,22 @@ function runAiAnalysis(apt) {
   const jsr      = apt.jeonseRatio || 0
   const sg       = apt.sigungu || apt.dong || ''
 
-  let score = 50
+  // calcAptScore와 동일한 점수 사용
+  const score = calcAptScore(apt)
   const reasons = []
 
   // 1. 시세 추이
   if(maxPrice > minPrice*1.05) {
-    score+=12; reasons.push({icon:'📈',text:`최저 ${fmt(minPrice)} → 최고 ${fmt(maxPrice)}로 상승 거래 존재`,good:true})
+    reasons.push({icon:'📈',text:`최저 ${fmt(minPrice)} → 최고 ${fmt(maxPrice)}로 상승 거래 존재`,good:true})
   } else {
-    score+=5; reasons.push({icon:'📊',text:`${fmt(minPrice)}~${fmt(maxPrice)} 안정적 가격대`,good:null})
+    reasons.push({icon:'📊',text:`${fmt(minPrice)}~${fmt(maxPrice)} 안정적 가격대`,good:null})
   }
 
   // 2. 전세가율
-  if(jsr>=70){score+=15;reasons.push({icon:'🏠',text:`전세가율 ${jsr}% — 갭이 작아 투자 안전성 높음`,good:true})}
-  else if(jsr>=55){score+=10;reasons.push({icon:'🏠',text:`전세가율 ${jsr}% — 갭투자 부담 적음`,good:true})}
-  else if(jsr>=40){score+=3;reasons.push({icon:'🏠',text:`전세가율 ${jsr}% — 보통 수준`,good:null})}
-  else if(jsr>0){score-=5;reasons.push({icon:'🏠',text:`전세가율 ${jsr}% — 갭이 커 투자 부담 있음`,good:false})}
+  if(jsr>=70){reasons.push({icon:'🏠',text:`전세가율 ${jsr}% — 갭이 작아 투자 안전성 높음`,good:true})}
+  else if(jsr>=55){reasons.push({icon:'🏠',text:`전세가율 ${jsr}% — 갭투자 부담 적음`,good:true})}
+  else if(jsr>=40){reasons.push({icon:'🏠',text:`전세가율 ${jsr}% — 보통 수준`,good:null})}
+  else if(jsr>0){reasons.push({icon:'🏠',text:`전세가율 ${jsr}% — 갭이 커 투자 부담 있음`,good:false})}
   else{reasons.push({icon:'🏠',text:'전세가율 데이터 없음',good:null})}
 
   // 3. 거래량
@@ -1365,7 +1399,7 @@ async function goToRec() {
       const selfNeed=p-loan
       const shortage=selfNeed-state.asset*10000
       const canBuy=!blocked&&shortage<=0
-      const score=Math.min(95,55+(apt.count>=10?15:apt.count>=5?8:0)+(canBuy?12:0)+(superSpec?10:isSeoul?5:0)+Math.min(apt.count||0,5))
+      const score = calcAptScore(apt)
       return { ...apt, _loan:loan, _monthly:mon, _selfNeed:selfNeed, _shortage:shortage, _canBuy:canBuy, _blocked:blocked, _score:score }
     })
 
