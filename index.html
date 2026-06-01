@@ -846,7 +846,7 @@ async function goToRec() {
 
     const results = await Promise.all(
       uniqueCodes.slice(0,4).map(code =>
-        fetch(`${PROXY}?type=trade&code=${code}&ym=202503`, {headers:HDR})
+        fetch(`${PROXY}?type=trade&code=${code}`, {headers:HDR})
           .then(r=>r.json()).catch(()=>({ok:false,data:[]}))
       )
     )
@@ -976,7 +976,7 @@ async function renderMkt() {
   try {
     const [rateRes, tradeRes] = await Promise.all([
       fetch(`${PROXY}?type=rate`,{headers:HDR}).then(r=>r.json()),
-      fetch(`${PROXY}?type=trade&code=11680&ym=202503`,{headers:HDR}).then(r=>r.json()),
+      fetch(`${PROXY}?type=trade&code=11680`,{headers:HDR}).then(r=>r.json()),
     ])
     if(rateRes.ok&&rateRes.data?.length){
       const l=rateRes.data[rateRes.data.length-1]
