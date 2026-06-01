@@ -921,21 +921,21 @@ function runAiAnalysis(apt) {
   else{reasons.push({icon:'🏠',text:'전세가율 데이터 없음',good:null})}
 
   // 3. 거래량
-  if(count>=10){score+=15;reasons.push({icon:'🔄',text:`거래 ${count}건 — 환금성 우수`,good:true})}
-  else if(count>=5){score+=8;reasons.push({icon:'🔄',text:`거래 ${count}건 — 환금성 양호`,good:true})}
-  else{score-=5;reasons.push({icon:'🔄',text:`거래 ${count}건 — 환금성 낮음`,good:false})}
+  if(count>=10){reasons.push({icon:'🔄',text:`거래 ${count}건 — 환금성 우수`,good:true})}
+  else if(count>=5){reasons.push({icon:'🔄',text:`거래 ${count}건 — 환금성 양호`,good:true})}
+  else{reasons.push({icon:'🔄',text:`거래 ${count}건 — 환금성 낮음`,good:false})}
 
   // 4. 건축연도
-  if(age<=5){score+=15;reasons.push({icon:'🏗',text:`${built}년 신축`,good:true})}
-  else if(age<=10){score+=10;reasons.push({icon:'🏗',text:`${built}년 준신축`,good:true})}
-  else if(age<=20){score+=5;reasons.push({icon:'🏗',text:`${built}년 (${age}년차)`,good:null})}
-  else{score-=5;reasons.push({icon:'🏗',text:`${built}년 (${age}년차) 구축`,good:false})}
+  if(age<=5){reasons.push({icon:'🏗',text:`${built}년 신축`,good:true})}
+  else if(age<=10){reasons.push({icon:'🏗',text:`${built}년 준신축`,good:true})}
+  else if(age<=20){reasons.push({icon:'🏗',text:`${built}년 (${age}년차)`,good:null})}
+  else{reasons.push({icon:'🏗',text:`${built}년 (${age}년차) 구축`,good:false})}
 
   // 5. 입지
   const premium=['강남구','서초구','송파구','용산구','성동구','마포구']
   const good=['광진구','영등포구','동작구','강동구','분당','판교']
-  if(premium.some(z=>sg.includes(z))){score+=15;reasons.push({icon:'📍',text:'핵심 입지 — 수요 탄탄',good:true})}
-  else if(good.some(z=>sg.includes(z))){score+=8;reasons.push({icon:'📍',text:'선호 입지',good:true})}
+  if(premium.some(z=>sg.includes(z))){reasons.push({icon:'📍',text:'핵심 입지 — 수요 탄탄',good:true})}
+  else if(good.some(z=>sg.includes(z))){reasons.push({icon:'📍',text:'선호 입지',good:true})}
 
   // 6. 예산
   const asset=state.asset*10000
@@ -947,8 +947,8 @@ function runAiAnalysis(apt) {
   const dsrL=income/12*.4/(r2*(1+r2)**n2/((1+r2)**n2-1))
   const loan2=Math.min(ltvL,dsrL)
   const power=asset+loan2
-  if(power>=price){score+=10;reasons.push({icon:'💰',text:`총 구매력 ${fmt(power)}으로 구매 가능`,good:true})}
-  else{score-=10;reasons.push({icon:'💰',text:`구매력 ${fmt(power-price)} 부족`,good:false})}
+  if(power>=price){reasons.push({icon:'💰',text:`총 구매력 ${fmt(power)}으로 구매 가능`,good:true})}
+  else{reasons.push({icon:'💰',text:`구매력 ${fmt(power-price)} 부족`,good:false})}
 
   score=Math.min(Math.max(score,20),95)
   const verdict=score>=80?'✦ 매수 추천':score>=65?'◈ 조건부 추천':score>=50?'△ 관망':'✕ 매수 비추'
