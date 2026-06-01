@@ -988,7 +988,15 @@ function applyFilter() {
 function populateSigunguFilter(apts) {
   const sel = $('filterSigungu')
   if(!sel) return
-  const sggSet = new Set(apts.map(a => a.sigungu).filter(Boolean))
+  // "서울 강남구" → "강남구" 로 구 이름만 추출
+  const sggSet = new Set(
+    apts.map(a => {
+      const sg = a.sigungu || ''
+      // 마지막 단어(구/시/군) 추출
+      const parts = sg.trim().split(' ')
+      return parts[parts.length-1] || sg
+    }).filter(Boolean)
+  )
   sel.innerHTML = '<option value="">전체 지역</option>'
   ;[...sggSet].sort().forEach(sg => {
     const opt = document.createElement('option')
