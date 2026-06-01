@@ -604,6 +604,7 @@ function navTo(p) {
   $('page-'+p)?.classList.add('active')
   $('nb-'+p)?.classList.add('active')
   document.querySelector('.scroll')?.scrollTop && (document.querySelector('.scroll').scrollTop=0)
+  if(p==='rec')  goToRec()
   if(p==='fav') renderFavs()
   if(p==='mkt') renderMkt()
 }
@@ -1110,7 +1111,12 @@ function renderCards(list) {
 
 /* ── 추천 단지 ── */
 async function goToRec() {
-  navTo('rec')
+  // 페이지 전환 (navTo 대신 직접)
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'))
+  document.querySelectorAll('.nb').forEach(b=>b.classList.remove('active'))
+  $('page-rec')?.classList.add('active')
+  $('nb-rec')?.classList.add('active')
+
   calcPower()
   const lw = $('recList'); if(!lw) return
   const sp = $('sumPower'), sd = $('sumDetail')
