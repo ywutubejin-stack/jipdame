@@ -536,9 +536,9 @@ function updateSliderUI() {
   if($('vAsset'))   $('vAsset').textContent  = a>=10000?(a/10000).toFixed(1)+'억':a.toLocaleString()+'만'
   if($('vIncome'))  $('vIncome').textContent = i.toLocaleString()+'만'
   if($('vRate'))    $('vRate').textContent   = rt+'%'
-  if($('in-asset'))  $('in-asset').value  = (a/10000).toFixed(1)
-  if($('in-income')) $('in-income').value = i
-  if($('in-rate'))   $('in-rate').value   = rt
+  if($('in-asset')  && document.activeElement !== $('in-asset'))   $('in-asset').value  = (a/10000).toFixed(1)
+  if($('in-income') && document.activeElement !== $('in-income'))  $('in-income').value = i
+  if($('in-rate')   && document.activeElement !== $('in-rate'))    $('in-rate').value   = rt
   if($('powerMain')) $('powerMain').textContent = fmt(state.power*10000)
   if($('pbAsset'))   $('pbAsset').textContent   = fmt(state.asset*10000)
   if($('pbLoan'))    $('pbLoan').textContent     = fmt(state.maxLoan*10000)
@@ -626,6 +626,7 @@ function openSheet(apt) {
 
   // 대출 계산
   calcLoanForSheet(apt)
+  runAiAnalysis(apt)
   updateFavBtn()
   $('sheetOverlay')?.classList.add('open')
   $('detailSheet')?.classList.add('open')
@@ -634,29 +635,151 @@ function openSheet(apt) {
 
 function calcLoanForSheet(apt) {
   const price  = apt.avgPrice || apt.price || 0
-  const inc    = (parseInt($('dInc')?.value)||state.income) * 10000
-  const ltv    = parseFloat($('dZone')?.value||'0.7')
+  const income = state.income * 10000
+  const h      = state.houseCount
+  const sg     = apt.sigungu || apt.dong || ''
+
+  // 지역 판단
+  const superSpec = ['강남구','서초구','송파구','용산구'].some(z=>sg.includes(z))
+  const isSeoul   = sg.includes('서울')
+  const ltv = superSpec ? (h===0?.5:h===1?.3:0)
+             : isSeoul  ? (h===0?.7:h===1?.6:.5)
+             :              (h===0?.7:h===1?.6:.5)
+  const blocked = superSpec && h >= 2
+  const zoneLabel = superSpec?'🔴 투기과열':isSeoul?'🟡 조정대상':'🟢 일반지역'
+
   const r = 3.6/100/12, n = 30*12
-  const ltvLoan = price <= 900000000
-    ? price * ltv
-    : 900000000*ltv + (price-900000000)*Math.max(ltv-0.1,0)
-  const dsrLoan = inc/12*.4/(r*(1+r)**n/((1+r)**n-1))
+  const NINE = 900000000
+  const ltvLoan = blocked ? 0
+    : price <= NINE ? price*ltv
+    : NINE*ltv + (price-NINE)*Math.max(ltv-.1,0)
+  const dsrLoan = income/12*.4/(r*(1+r)**n/((1+r)**n-1))
   const loan    = Math.min(ltvLoan, dsrLoan)
   const mon     = loan>0 ? loan*r*(1+r)**n/((1+r)**n-1) : 0
-  const self_   = price - loan
+  const selfNeed= price - loan
   const asset   = state.asset * 10000
-  if($('dLoanAmt'))  $('dLoanAmt').textContent  = fmt(loan)
-  if($('dLoanMon'))  $('dLoanMon').textContent  = Math.round(mon/10000)+'만원/월'
-  if($('dLoanSelf')) $('dLoanSelf').textContent = fmt(self_)
-  if($('dLoanDsr'))  $('dLoanDsr').textContent  = inc>0?Math.round(mon/(inc/12)*100)+'%':'—'
-  const afford = $('dAfford')
-  if(afford) {
-    const ok = asset >= self_
-    afford.style.cssText = `padding:10px 12px;border-radius:10px;font-size:12px;margin-bottom:4px;${ok?'background:rgba(74,222,128,.08);border:1px solid rgba(74,222,128,.2);color:var(--up)':'background:rgba(248,113,113,.08);border:1px solid rgba(248,113,113,.2);color:var(--down)'}`
-    afford.textContent = ok
-      ? `✓ 내 자산(${fmt(asset)})으로 구매 가능 — 자기자본 ${fmt(self_)} 필요`
-      : `✗ 자기자본 ${fmt(self_-asset)} 부족 — 필요 ${fmt(self_)} / 보유 ${fmt(asset)}`
+  const canBuy  = !blocked && selfNeed <= asset
+  const dsrPct  = income>0&&loan>0 ? Math.round(mon/(income/12)*100) : 0
+
+  const lw = $('dtLoanWrap')
+  if(!lw) return
+
+  if(blocked) {
+    lw.innerHTML=`<div style="padding:12px;background:rgba(248,113,113,.08);border:1px solid rgba(248,113,113,.2);border-radius:10px;font-size:12px;color:var(--down)">⛔ 대출 불가 — 다주택자 투기과열지구<br><span style="color:var(--muted)">전액 자기자본 필요 · ${fmt(price)}</span></div>`
+    return
   }
+
+  lw.innerHTML=`
+    <div style="background:var(--bg3);border-radius:10px;padding:12px;margin-bottom:8px;font-size:11px;color:var(--muted)">${zoneLabel} · LTV ${ltv*100}% · DSR 40%${price>NINE?' · 9억 초과분 추가 제한':''}</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
+      <div style="background:var(--bg3);border-radius:10px;padding:12px">
+        <div style="font-size:10px;color:var(--muted);margin-bottom:4px">대출 가능</div>
+        <div style="font-size:16px;font-weight:700;color:var(--blue)">${fmt(loan)}</div>
+      </div>
+      <div style="background:var(--bg3);border-radius:10px;padding:12px">
+        <div style="font-size:10px;color:var(--muted);margin-bottom:4px">월 상환 (30년)</div>
+        <div style="font-size:16px;font-weight:700;color:var(--gold)">${Math.round(mon/10000)}만원</div>
+      </div>
+      <div style="background:var(--bg3);border-radius:10px;padding:12px">
+        <div style="font-size:10px;color:var(--muted);margin-bottom:4px">자기자본 필요</div>
+        <div style="font-size:16px;font-weight:700">${fmt(selfNeed)}</div>
+      </div>
+      <div style="background:var(--bg3);border-radius:10px;padding:12px">
+        <div style="font-size:10px;color:var(--muted);margin-bottom:4px">DSR 비율</div>
+        <div style="font-size:16px;font-weight:700;color:${dsrPct>40?'var(--down)':'var(--up)'}">${dsrPct}%</div>
+      </div>
+    </div>
+    <div style="padding:10px 12px;border-radius:10px;font-size:12px;${canBuy?'background:rgba(74,222,128,.08);border:1px solid rgba(74,222,128,.2);color:var(--up)':'background:rgba(248,113,113,.08);border:1px solid rgba(248,113,113,.2);color:var(--down)'}">
+      ${canBuy
+        ? `✓ 내 자산(${fmt(asset)})으로 구매 가능 — 자기자본 ${fmt(selfNeed)} 필요`
+        : `✗ 자기자본 <strong>${fmt(selfNeed-asset)}</strong> 부족 — 필요 ${fmt(selfNeed)} / 보유 ${fmt(asset)}`}
+    </div>`
+}
+
+/* ── 규칙 기반 AI 분석 ── */
+function runAiAnalysis(apt) {
+  const scoreEl  = $('aiScoreNum')
+  const verdEl   = $('aiVerdict')
+  const scoreRow = $('aiScoreRow')
+  const textEl   = $('dtAiText')
+  if(!textEl) return
+
+  const price    = apt.avgPrice || apt.price || 0
+  const minPrice = apt.minPrice || price
+  const maxPrice = apt.maxPrice || price
+  const built    = parseInt(apt.built) || 2000
+  const age      = 2025 - built
+  const count    = apt.count || 0
+  const jsr      = apt.jeonseRatio || 0
+  const sg       = apt.sigungu || apt.dong || ''
+
+  let score = 50
+  const reasons = []
+
+  // 1. 시세 추이
+  if(maxPrice > minPrice*1.05) {
+    score+=12; reasons.push({icon:'📈',text:`최저 ${fmt(minPrice)} → 최고 ${fmt(maxPrice)}로 상승 거래 존재`,good:true})
+  } else {
+    score+=5; reasons.push({icon:'📊',text:`${fmt(minPrice)}~${fmt(maxPrice)} 안정적 가격대`,good:null})
+  }
+
+  // 2. 전세가율
+  if(jsr>=70){score+=15;reasons.push({icon:'🏠',text:`전세가율 ${jsr}% — 갭이 작아 투자 안전성 높음`,good:true})}
+  else if(jsr>=55){score+=10;reasons.push({icon:'🏠',text:`전세가율 ${jsr}% — 갭투자 부담 적음`,good:true})}
+  else if(jsr>=40){score+=3;reasons.push({icon:'🏠',text:`전세가율 ${jsr}% — 보통 수준`,good:null})}
+  else if(jsr>0){score-=5;reasons.push({icon:'🏠',text:`전세가율 ${jsr}% — 갭이 커 투자 부담 있음`,good:false})}
+  else{reasons.push({icon:'🏠',text:'전세가율 데이터 없음',good:null})}
+
+  // 3. 거래량
+  if(count>=10){score+=15;reasons.push({icon:'🔄',text:`거래 ${count}건 — 환금성 우수`,good:true})}
+  else if(count>=5){score+=8;reasons.push({icon:'🔄',text:`거래 ${count}건 — 환금성 양호`,good:true})}
+  else{score-=5;reasons.push({icon:'🔄',text:`거래 ${count}건 — 환금성 낮음`,good:false})}
+
+  // 4. 건축연도
+  if(age<=5){score+=15;reasons.push({icon:'🏗',text:`${built}년 신축`,good:true})}
+  else if(age<=10){score+=10;reasons.push({icon:'🏗',text:`${built}년 준신축`,good:true})}
+  else if(age<=20){score+=5;reasons.push({icon:'🏗',text:`${built}년 (${age}년차)`,good:null})}
+  else{score-=5;reasons.push({icon:'🏗',text:`${built}년 (${age}년차) 구축`,good:false})}
+
+  // 5. 입지
+  const premium=['강남구','서초구','송파구','용산구','성동구','마포구']
+  const good=['광진구','영등포구','동작구','강동구','분당','판교']
+  if(premium.some(z=>sg.includes(z))){score+=15;reasons.push({icon:'📍',text:'핵심 입지 — 수요 탄탄',good:true})}
+  else if(good.some(z=>sg.includes(z))){score+=8;reasons.push({icon:'📍',text:'선호 입지',good:true})}
+
+  // 6. 예산
+  const asset=state.asset*10000
+  const income=state.income*10000
+  const r2=3.6/100/12,n2=30*12
+  const ltvR=['강남구','서초구','송파구','용산구'].some(z=>sg.includes(z))
+    ?(state.houseCount===0?.5:.3):sg.includes('서울')?(state.houseCount===0?.7:.6):.7
+  const ltvL=price<=900000000?price*ltvR:900000000*ltvR+(price-900000000)*Math.max(ltvR-.1,0)
+  const dsrL=income/12*.4/(r2*(1+r2)**n2/((1+r2)**n2-1))
+  const loan2=Math.min(ltvL,dsrL)
+  const power=asset+loan2
+  if(power>=price){score+=10;reasons.push({icon:'💰',text:`총 구매력 ${fmt(power)}으로 구매 가능`,good:true})}
+  else{score-=10;reasons.push({icon:'💰',text:`구매력 ${fmt(power-price)} 부족`,good:false})}
+
+  score=Math.min(Math.max(score,20),95)
+  const verdict=score>=80?'✦ 매수 추천':score>=65?'◈ 조건부 추천':score>=50?'△ 관망':'✕ 매수 비추'
+  const vColor=score>=80?'var(--up)':score>=65?'var(--gold)':score>=50?'var(--muted)':'var(--down)'
+
+  if(scoreEl){scoreEl.textContent=score+'점';scoreEl.style.color=vColor}
+  if(verdEl){verdEl.textContent=verdict;verdEl.style.color=vColor}
+  if(scoreRow) scoreRow.style.display='block'
+
+  const summary=score>=80?'실거래·입지·예산 종합 결과 <strong>매수를 추천</strong>합니다.'
+    :score>=65?'전반적으로 양호하나 <strong>일부 조건 확인 후 매수</strong>를 검토하세요.'
+    :score>=50?'현재 조건에서는 <strong>좀 더 지켜보는 것</strong>을 권장합니다.'
+    :'현재 조건에서는 <strong>다른 단지를 먼저 검토</strong>하는 것이 좋습니다.'
+
+  textEl.innerHTML=`<div style="margin-bottom:12px;font-size:13px;line-height:1.8">${summary}</div>
+    <div style="display:flex;flex-direction:column;gap:7px">
+      ${reasons.map(r=>`<div style="display:flex;gap:8px;font-size:12px;line-height:1.6">
+        <span style="flex-shrink:0">${r.icon}</span>
+        <span style="color:${r.good===true?'var(--text)':r.good===false?'rgba(248,113,113,.8)':'var(--muted)'}">${r.text}</span>
+      </div>`).join('')}
+    </div>`
 }
 
 function closeSheet() {
@@ -915,14 +1038,21 @@ window.addEventListener('DOMContentLoaded', () => {
       updateSliderUI()
     }
     const fromInput = () => {
-      const raw = parseFloat((inp[key]?.value||'0').replace(/[^0-9.]/g,'')) || 0
-      // 보유자산은 억→만원 변환
-      let v = key==='asset' ? Math.round(raw * 10000) : Math.round(raw)
+      const str = inp[key]?.value || ''
+      // 입력 중엔 강제 변환 안 함 (지우는 중일 수 있음)
+      if(str === '' || str === '.' || str.endsWith('.')) return
+      const raw = parseFloat(str.replace(/[^0-9.]/g,''))
+      if(isNaN(raw)) return
+      // 보유자산은 억→만원 변환, 금리는 소수 유지
+      let v = key==='asset' ? Math.round(raw * 10000)
+            : key==='rate'  ? raw
+            : Math.round(raw)
       if(v < min) v = min
       if(v > max) v = max
       state[key] = v
       if(sl[key]) sl[key].value = v
       updateSliderUI()
+      // 입력칸은 건드리지 않음 (사용자가 입력 중)
     }
     sl[key]?.addEventListener('input',  fromSlider)
     sl[key]?.addEventListener('change', fromSlider)
