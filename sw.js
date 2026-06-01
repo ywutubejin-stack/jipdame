@@ -1,10 +1,9 @@
-const CACHE_NAME = 'jipdame-v5';
-const ASSETS = ['/', '/index.html', '/manifest.json'];
+const CACHE_NAME = 'jipdame-v6';
 
 self.addEventListener('install', e => {
-  e.waitUntil(caches.open(CACHE_NAME).then(c => c.addAll(ASSETS)));
   self.skipWaiting();
 });
+
 self.addEventListener('activate', e => {
   e.waitUntil(
     caches.keys().then(keys =>
@@ -13,12 +12,15 @@ self.addEventListener('activate', e => {
   );
   self.clients.claim();
 });
+
 self.addEventListener('fetch', e => {
   // API 요청은 캐시 안 함
-  if (e.request.url.includes('supabase') || e.request.url.includes('apis.data')) {
+  if (e.request.url.includes('supabase') ||
+      e.request.url.includes('apis.data') ||
+      e.request.url.includes('kakao') ||
+      e.request.url.includes('dapi.kakao')) {
     return
   }
-  e.respondWith(
-    caches.match(e.request).then(cached => cached || fetch(e.request))
-  );
+  // 나머지는 네트워크 우선
+  e.respondWith(fetch(e.request).catch(() => caches.match(e.request)))
 });
