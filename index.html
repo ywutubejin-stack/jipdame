@@ -469,6 +469,8 @@ body{background:#07090f;}
       <option value="11260">중랑구</option>
       <option value="11305">강북구</option>
     </select>
+    <select id="mktPeriod" style="background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:6px 10px;font-size:12px;cursor:pointer;flex-shrink:0">
+    </select>
     <select id="mktSort" style="background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:6px 10px;font-size:12px;cursor:pointer;flex-shrink:0">
       <option value="price">가격 높은순</option>
       <option value="count">거래량 많은순</option>
@@ -492,7 +494,7 @@ body{background:#07090f;}
           <th style="text-align:center;padding:8px 4px">면적</th>
           <th style="text-align:right;padding:8px 4px">평균가</th>
           <th style="text-align:right;padding:8px 4px">전세가율</th>
-          <th style="text-align:right;padding:8px 4px">거래</th>
+          <th style="text-align:right;padding:8px 4px">거래건수</th>
         </tr>
       </thead>
       <tbody id="mktTbody"></tbody>
@@ -571,19 +573,36 @@ body{background:#07090f;}
     <div class="ai-panel" id="aiPanel">
       <div class="ai-header">
         <div class="ai-dot"></div>
-        <div class="ai-label">Claude AI 실시간 분석</div>
+        <div class="ai-label">집담 AI 분석</div>
       </div>
-      <!-- AI 분석 결과 -->
-      <div id="aiScoreRow" style="display:none;margin-bottom:12px">
-        <div style="display:flex;align-items:center;gap:12px">
-          <div>
-            <div style="font-family:var(--serif);font-size:42px;font-weight:700;line-height:1" id="aiScoreNum">—</div>
-            <div style="font-size:12px;margin-top:4px" id="aiVerdict">분석 중...</div>
+
+      <!-- 점수 + 판정 -->
+      <div id="aiScoreRow" style="display:none;margin-bottom:16px">
+        <div style="display:flex;align-items:center;gap:14px">
+          <div style="text-align:center;flex-shrink:0">
+            <div style="font-family:var(--serif);font-size:52px;font-weight:700;line-height:1" id="aiScoreNum">—</div>
+            <div style="font-size:10px;color:var(--muted);margin-top:2px">/ 100점</div>
           </div>
-          <div style="flex:1;font-size:13px;line-height:1.8;color:var(--text)" id="aiOneLiner"></div>
+          <div style="flex:1">
+            <div style="font-size:15px;font-weight:700;margin-bottom:4px" id="aiVerdict">—</div>
+            <div style="font-size:12px;color:var(--muted);line-height:1.6" id="aiSummary"></div>
+          </div>
         </div>
       </div>
-      <div id="dtAiText" style="font-size:13px;line-height:1.9;white-space:pre-wrap;color:var(--text)">
+
+      <!-- 점수 항목별 바 차트 -->
+      <div id="aiScoreBars" style="margin-bottom:16px"></div>
+
+      <!-- 실거래 시계열 차트 -->
+      <div id="aiChartWrap" style="display:none;margin-bottom:16px">
+        <div style="font-size:11px;font-weight:600;color:var(--muted);margin-bottom:8px">📈 최근 실거래 가격 추이</div>
+        <div style="position:relative;height:140px">
+          <canvas id="dtPriceChart"></canvas>
+        </div>
+      </div>
+
+      <!-- 분석 근거 목록 -->
+      <div id="dtAiText" style="font-size:13px;line-height:1.9;color:var(--text)">
         <div style="color:var(--muted);font-size:12px;display:flex;align-items:center;gap:8px">
           <span class="ai-dot" style="flex-shrink:0"></span> 단지를 선택하면 AI가 분석을 시작합니다
         </div>
@@ -890,13 +909,87 @@ function runAiAnalysis(apt) {
     :score>=50?'현재 조건에서는 <strong>좀 더 지켜보는 것</strong>을 권장합니다.'
     :'현재 조건에서는 <strong>다른 단지를 먼저 검토</strong>하는 것이 좋습니다.'
 
-  textEl.innerHTML=`<div style="margin-bottom:12px;font-size:13px;line-height:1.8">${summary}</div>
+  // 요약 텍스트
+  const sumEl = $('aiSummary')
+  if(sumEl) sumEl.innerHTML = summary
+
+  // 분석 근거 목록
+  textEl.innerHTML = `
     <div style="display:flex;flex-direction:column;gap:7px">
       ${reasons.map(r=>`<div style="display:flex;gap:8px;font-size:12px;line-height:1.6">
         <span style="flex-shrink:0">${r.icon}</span>
         <span style="color:${r.good===true?'var(--text)':r.good===false?'rgba(248,113,113,.8)':'var(--muted)'}">${r.text}</span>
       </div>`).join('')}
     </div>`
+
+  // 점수 항목별 바 차트
+  const scoreItems = [
+    { label:'시세 추이',   val: Math.min(100, 50 + (maxPrice>minPrice*1.05?25:10)),    color:'#e8c87a' },
+    { label:'전세가율',    val: jsr>=70?95:jsr>=55?80:jsr>=40?60:jsr>0?35:30,         color:'#4ade80' },
+    { label:'거래량',      val: Math.min(95, count*8+20),                               color:'#4f9cf9' },
+    { label:'건축연도',    val: age<=5?95:age<=10?82:age<=20?65:45,                     color:'#c084fc' },
+    { label:'입지',        val: ['강남구','서초구','송파구','용산구'].some(z=>sg.includes(z))?92:['성동구','마포구','광진구'].some(z=>sg.includes(z))?78:sg.includes('서울')?65:55, color:'#fb923c' },
+    { label:'예산 적합',   val: power>=(apt.avgPrice||price)?90:Math.max(20, 90-Math.round((((apt.avgPrice||price)-power)/(apt.avgPrice||price))*100)), color:'#34d399' },
+  ]
+  const barsEl = $('aiScoreBars')
+  if(barsEl) {
+    barsEl.innerHTML = `
+      <div style="font-size:11px;font-weight:600;color:var(--muted);margin-bottom:8px">📊 항목별 점수</div>
+      <div style="display:flex;flex-direction:column;gap:6px">
+        ${scoreItems.map(item => `
+          <div style="display:flex;align-items:center;gap:8px">
+            <div style="font-size:11px;color:var(--muted);width:54px;flex-shrink:0">${item.label}</div>
+            <div style="flex:1;height:8px;background:rgba(255,255,255,.08);border-radius:4px;overflow:hidden">
+              <div style="height:100%;width:${item.val}%;background:${item.color};border-radius:4px;transition:width .6s ease"></div>
+            </div>
+            <div style="font-size:11px;font-weight:600;color:${item.color};width:28px;text-align:right">${item.val}</div>
+          </div>`).join('')}
+      </div>`
+  }
+
+  // 실거래 시계열 차트
+  const trades = apt.trades || []
+  if(trades.length >= 2) {
+    const chartWrap = $('aiChartWrap')
+    if(chartWrap) chartWrap.style.display = 'block'
+    const ctx = $('dtPriceChart')
+    if(ctx) {
+      // 기존 차트 제거
+      if(ctx._chart) { ctx._chart.destroy(); ctx._chart = null }
+      const sorted = [...trades].sort((a,b) => a.date?.localeCompare(b.date||'')||0)
+      const labels = sorted.map(t => t.date?.slice(2,7)||'')
+      const prices = sorted.map(t => Math.round((t.price||0)/100000000*100)/100) // 억 단위
+
+      ctx._chart = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels,
+          datasets: [{
+            data: prices,
+            borderColor: '#e8c87a',
+            backgroundColor: 'rgba(232,200,122,.08)',
+            borderWidth: 2,
+            pointRadius: 4,
+            pointBackgroundColor: '#e8c87a',
+            fill: true,
+            tension: 0.3,
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { display: false } },
+          scales: {
+            x: { ticks: { color: '#888', font: { size: 10 } }, grid: { color: 'rgba(255,255,255,.05)' } },
+            y: {
+              ticks: { color: '#888', font: { size: 10 }, callback: v => v+'억' },
+              grid: { color: 'rgba(255,255,255,.05)' }
+            }
+          }
+        }
+      })
+    }
+  }
 }
 
 function closeSheet() {
@@ -1289,13 +1382,16 @@ async function renderMkt(skipRate = false) {
   // 카드 제목 업데이트
   const title = $('mktCardTitle')
   const regionName = sidoSel?.options[sidoSel.selectedIndex]?.text || '서울 전체'
-  if(title) title.innerHTML = `<strong>${regionName} 실거래 TOP 단지</strong>`
+  const periodLabel = $('mktPeriod')?.options[$('mktPeriod')?.selectedIndex]?.text || ''
+  if(title) title.innerHTML = `<strong>${regionName} 실거래 TOP 단지</strong> <span style="font-size:10px;color:var(--muted);font-weight:400">${periodLabel} 기준</span>`
 
   const tb = $('mktTbody')
 
   // 정렬만 바뀐 경우 캐시 데이터 재사용
   const lastSido = renderMkt._lastSido
-  if(skipRate && mktDataCache.length && lastSido === sidoVal) {
+  const lastYm = renderMkt._lastYm
+  const ymNow = $('mktPeriod')?.value || ''
+  if(skipRate && mktDataCache.length && lastSido === sidoVal && lastYm === ymNow) {
     renderMktTable(mktDataCache, sortVal)
     return
   }
@@ -1310,10 +1406,14 @@ async function renderMkt(skipRate = false) {
       promises.push(fetch(`${PROXY}?type=rate`,{headers:HDR}).then(r=>r.json()))
     }
 
+    // 기간 선택
+    const periodSel = $('mktPeriod')
+    const ymVal = periodSel?.value || ''
+
     // 지역 데이터
-    const tradeUrl = sidoVal === 'sido'
+    const tradeUrl = (sidoVal === 'sido'
       ? `${PROXY}?type=trade&sido=서울`
-      : `${PROXY}?type=trade&code=${sidoVal}`
+      : `${PROXY}?type=trade&code=${sidoVal}`) + (ymVal ? `&ym=${ymVal}` : '')
     promises.push(fetch(tradeUrl,{headers:HDR}).then(r=>r.json()))
 
     const results = await Promise.all(promises)
@@ -1328,6 +1428,7 @@ async function renderMkt(skipRate = false) {
     if(tradeRes?.ok && tradeRes.data?.length) {
       mktDataCache = [...tradeRes.data]
       renderMkt._lastSido = sidoVal
+      renderMkt._lastYm = $('mktPeriod')?.value || ''
       let data = [...tradeRes.data]
 
       // 정렬
@@ -1557,9 +1658,26 @@ window.addEventListener('DOMContentLoaded', () => {
   updateSliderUI()
   renderMkt()
 
-  // 시장현황 지역/정렬 변경
-  $('mktSido')?.addEventListener('change', ()=>renderMkt(true))
+  // 시장현황 지역/정렬/기간 변경
+  $('mktSido')?.addEventListener('change', ()=>renderMkt(false))
   $('mktSort')?.addEventListener('change', ()=>renderMkt(true))
+  $('mktPeriod')?.addEventListener('change', ()=>renderMkt(false))
+
+  // 기간 옵션 동적 생성 (최근 12개월)
+  const periodSel = $('mktPeriod')
+  if(periodSel) {
+    const now = new Date()
+    for(let i = 2; i <= 13; i++) {
+      const d = new Date(now.getFullYear(), now.getMonth()-i, 1)
+      const ym = `${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}`
+      const label = `${d.getFullYear()}.${String(d.getMonth()+1).padStart(2,'0')}`
+      const opt = document.createElement('option')
+      opt.value = ym
+      opt.textContent = label
+      if(i === 2) opt.selected = true
+      periodSel.appendChild(opt)
+    }
+  }
 
   // 맨 위로 버튼
   const scrollEl = $('scrollEl')
