@@ -564,9 +564,11 @@ body{background:#07090f;}
     <div class="det-sec">단지 제원 및 정보</div>
     <div class="stat4">
       <div class="stat-card"><div class="stat-label">건축년도</div><div class="stat-val" id="dtBuildYear">—</div></div>
-      <div class="stat-card"><div class="stat-label">단지규모</div><div class="stat-val" id="dtHouses">—</div></div>
-      <div class="stat-card"><div class="stat-label">동수 구성</div><div class="stat-val" id="dtDongCnt">—</div></div>
-      <div class="stat-card"><div class="stat-label">집담 평가점수</div><div class="stat-val" id="dtScore" style="color:var(--gold)">—</div></div>
+      <div class="stat-card"><div class="stat-label">세대수</div><div class="stat-val" id="dtHouses">—</div></div>
+      <div class="stat-card"><div class="stat-label">동수</div><div class="stat-val" id="dtDongCnt">—</div></div>
+      <div class="stat-card"><div class="stat-label">최고층</div><div class="stat-val" id="dtFloor">—</div></div>
+      <div class="stat-card"><div class="stat-label">난방방식</div><div class="stat-val" id="dtHeat">—</div></div>
+      <div class="stat-card"><div class="stat-label">집담 점수</div><div class="stat-val" id="dtScore" style="color:var(--gold)">—</div></div>
     </div>
     
     <div class="det-sec">🤖 AI 매수 분석</div>
@@ -742,6 +744,24 @@ function openSheet(apt) {
   if($('dtBuildYear')) $('dtBuildYear').textContent = apt.built ? apt.built+'년' : '—'
   if($('dtHouses'))    $('dtHouses').textContent    = apt.houses ? apt.houses.toLocaleString()+'세대' : '—'
   if($('dtDongCnt'))   $('dtDongCnt').textContent   = apt.dong_cnt ? apt.dong_cnt+'개 동' : '—'
+  if($('dtFloor'))     $('dtFloor').textContent     = '—'
+  if($('dtHeat'))      $('dtHeat').textContent      = '—'
+  if($('dtScore'))     $('dtScore').textContent     = apt._score ? apt._score+'점' : '—'
+
+  // 단지 기본정보 API 조회
+  if(apt.sggCd && apt.name) {
+    fetch(`${PROXY}?type=info&name=${encodeURIComponent(apt.name)}&sggCd=${apt.sggCd}`, {headers:HDR})
+      .then(r=>r.json())
+      .then(res => {
+        if(!res.ok || !res.data) return
+        const d = res.data
+        if($('dtBuildYear') && d.built)  $('dtBuildYear').textContent = d.built+'년'
+        if($('dtHouses')    && d.houses) $('dtHouses').textContent    = d.houses.toLocaleString()+'세대'
+        if($('dtDongCnt')   && d.dongCnt) $('dtDongCnt').textContent  = d.dongCnt+'개 동'
+        if($('dtFloor')     && d.totalFloor) $('dtFloor').textContent = d.totalFloor+'층'
+        if($('dtHeat')      && d.heat)   $('dtHeat').textContent      = d.heat
+      }).catch(()=>{})
+  }
 
   // 실거래 내역
   const trades = apt.trades||[]
