@@ -12,6 +12,7 @@
 <link rel="apple-touch-icon" href="icon-192.png">
 <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@400;600;700&family=Noto+Sans+KR:wght@300;400;500;700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://dapi.kakao.com/v2/maps/sdk.js?appkey=92ce8b22817c7a130d291ece4383e669&libraries=services"></script>
 <style>
 :root {
   --bg:#0a0c12; --bg2:#10131c; --bg3:#171b27; --card:#1c2133;
@@ -386,7 +387,46 @@ body{background:#07090f;}
     <button class="ms-edit" id="msEdit">조건 수정 ›</button>
   </div>
 
+  <!-- 뷰 전환 탭 -->
+  <div style="display:flex;gap:6px;margin-bottom:10px">
+    <button id="viewList" onclick="setView('list')" style="flex:1;padding:8px;border-radius:10px;border:1px solid var(--gold);background:rgba(232,200,122,.15);color:var(--gold);font-size:12px;font-weight:600;cursor:pointer">≡ 목록</button>
+    <button id="viewMap" onclick="setView('map')" style="flex:1;padding:8px;border-radius:10px;border:1px solid var(--border);background:transparent;color:var(--muted);font-size:12px;font-weight:600;cursor:pointer">🗺 지도</button>
+  </div>
+
+  <!-- 필터/정렬 바 -->
+  <div style="display:flex;gap:6px;margin-bottom:10px;overflow-x:auto;padding-bottom:4px;scrollbar-width:none">
+    <select id="filterSigungu" style="background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:6px 10px;font-size:11px;cursor:pointer;white-space:nowrap;flex-shrink:0">
+      <option value="">전체 지역</option>
+    </select>
+    <select id="filterJsr" style="background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:6px 10px;font-size:11px;cursor:pointer;flex-shrink:0">
+      <option value="">전세가율 전체</option>
+      <option value="60">60% 이상</option>
+      <option value="50">50% 이상</option>
+      <option value="40">40% 이상</option>
+    </select>
+    <select id="filterBuy" style="background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:6px 10px;font-size:11px;cursor:pointer;flex-shrink:0">
+      <option value="">전체</option>
+      <option value="can">구매 가능만</option>
+      <option value="cant">자본 부족만</option>
+    </select>
+    <select id="sortBy" style="background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:6px 10px;font-size:11px;cursor:pointer;flex-shrink:0">
+      <option value="default">구매가능순</option>
+      <option value="price_asc">가격 낮은순</option>
+      <option value="price_desc">가격 높은순</option>
+      <option value="jsr_desc">전세가율 높은순</option>
+      <option value="score_desc">점수 높은순</option>
+      <option value="count_desc">거래량 많은순</option>
+    </select>
+  </div>
+
+  <!-- 결과 수 -->
+  <div id="recCount" style="font-size:11px;color:var(--muted);margin-bottom:8px"></div>
+
+  <!-- 목록 뷰 -->
   <div id="recList"></div>
+
+  <!-- 지도 뷰 -->
+  <div id="recMap" style="display:none;border-radius:14px;overflow:hidden;height:500px"></div>
 </div>
 </div>
 
@@ -823,6 +863,203 @@ function renderFavs() {
   })
 }
 
+/* ── 전체 단지 데이터 저장 ── */
+let allAptData = []
+let currentView = 'list'
+let kakaoMap = null
+
+/* ── 뷰 전환 ── */
+function setView(v) {
+  currentView = v
+  const listBtn = $('viewList'), mapBtn = $('viewMap')
+  const listEl = $('recList'), mapEl = $('recMap')
+  if(v === 'list') {
+    if(listBtn) { listBtn.style.background='rgba(232,200,122,.15)'; listBtn.style.borderColor='var(--gold)'; listBtn.style.color='var(--gold)' }
+    if(mapBtn)  { mapBtn.style.background='transparent'; mapBtn.style.borderColor='var(--border)'; mapBtn.style.color='var(--muted)' }
+    if(listEl) listEl.style.display='block'
+    if(mapEl)  mapEl.style.display='none'
+  } else {
+    if(mapBtn)  { mapBtn.style.background='rgba(232,200,122,.15)'; mapBtn.style.borderColor='var(--gold)'; mapBtn.style.color='var(--gold)' }
+    if(listBtn) { listBtn.style.background='transparent'; listBtn.style.borderColor='var(--border)'; listBtn.style.color='var(--muted)' }
+    if(listEl) listEl.style.display='none'
+    if(mapEl)  mapEl.style.display='block'
+    initMap()
+  }
+}
+
+/* ── 카카오맵 초기화 ── */
+function initMap() {
+  const mapEl = $('recMap')
+  if(!mapEl) return
+
+  if(typeof kakao === 'undefined') {
+    mapEl.innerHTML=`<div style="display:flex;align-items:center;justify-content:center;height:100%;background:var(--bg2);color:var(--muted);font-size:13px;text-align:center;padding:20px">지도 로드 중...</div>`
+    return
+  }
+
+  if(!kakaoMap) {
+    kakaoMap = new kakao.maps.Map(mapEl, {
+      center: new kakao.maps.LatLng(37.5665, 126.9780),
+      level: 8
+    })
+  }
+  updateMapMarkers()
+}
+
+/* ── 지도 마커 업데이트 ── */
+async function updateMapMarkers() {
+  if(!kakaoMap || typeof kakao === 'undefined') return
+  const filtered = getFilteredSorted().slice(0, 50) // 최대 50개
+  const geocoder = new kakao.maps.services.Geocoder()
+  const bounds = new kakao.maps.LatLngBounds()
+
+  for(const apt of filtered) {
+    const addr = `${apt.sigungu||''} ${apt.dong||''} ${apt.jibun||''}`
+    await new Promise(resolve => {
+      geocoder.addressSearch(addr.trim(), (result, status) => {
+        if(status === kakao.maps.services.Status.OK) {
+          const pos = new kakao.maps.LatLng(result[0].y, result[0].x)
+          bounds.extend(pos)
+          const jsr = apt.jeonseRatio||0
+          const canBuy = apt._canBuy
+
+          // 커스텀 마커
+          const content = `<div style="background:${canBuy?'#4ade80':apt._blocked?'#f87171':'#e8c87a'};color:#0a0c12;padding:4px 8px;border-radius:20px;font-size:10px;font-weight:700;white-space:nowrap;box-shadow:0 2px 8px rgba(0,0,0,.3)">${apt.name.length>6?apt.name.slice(0,6)+'..':apt.name}<br>${fmt(apt.avgPrice)}</div>`
+          const marker = new kakao.maps.CustomOverlay({ position:pos, content, yAnchor:1.3 })
+          marker.setMap(kakaoMap)
+
+          // 클릭 이벤트
+          marker.getContent = () => content
+          const div = document.createElement('div')
+          div.innerHTML = content
+          div.style.cursor = 'pointer'
+          div.addEventListener('click', () => openSheet(apt))
+          marker.setContent(div.innerHTML)
+        }
+        resolve()
+      })
+    })
+  }
+  if(!bounds.isEmpty()) kakaoMap.setBounds(bounds)
+}
+
+/* ── 필터/정렬 적용 ── */
+function getFilteredSorted() {
+  let list = [...allAptData]
+  const sigungu = $('filterSigungu')?.value || ''
+  const jsr     = parseInt($('filterJsr')?.value || '0')
+  const buy     = $('filterBuy')?.value || ''
+  const sort    = $('sortBy')?.value || 'default'
+
+  // 필터
+  if(sigungu) list = list.filter(a => (a.sigungu||'').includes(sigungu) || (a.dong||'').includes(sigungu))
+  if(jsr)     list = list.filter(a => a.jeonseRatio >= jsr)
+  if(buy === 'can')  list = list.filter(a => a._canBuy)
+  if(buy === 'cant') list = list.filter(a => !a._canBuy && !a._blocked)
+
+  // 정렬
+  if(sort === 'price_asc')   list.sort((a,b) => (a.avgPrice||0)-(b.avgPrice||0))
+  else if(sort === 'price_desc')  list.sort((a,b) => (b.avgPrice||0)-(a.avgPrice||0))
+  else if(sort === 'jsr_desc')    list.sort((a,b) => (b.jeonseRatio||0)-(a.jeonseRatio||0))
+  else if(sort === 'score_desc')  list.sort((a,b) => (b._score||0)-(a._score||0))
+  else if(sort === 'count_desc')  list.sort((a,b) => (b.count||0)-(a.count||0))
+  else {
+    // 기본: 구매가능 → 자본부족 → 대출불가
+    list.sort((a,b) => {
+      const ga = a._blocked?2:a._canBuy?0:1
+      const gb = b._blocked?2:b._canBuy?0:1
+      if(ga!==gb) return ga-gb
+      return ga===0?(a.avgPrice||0)-(b.avgPrice||0):(a._shortage||0)-(b._shortage||0)
+    })
+  }
+  return list
+}
+
+/* ── 필터 변경시 카드 재렌더 ── */
+function applyFilter() {
+  const filtered = getFilteredSorted()
+  const rc = $('recCount')
+  if(rc) rc.textContent = `${filtered.length}개 단지`
+  if(currentView === 'list') renderCards(filtered)
+  else updateMapMarkers()
+}
+
+/* ── 시군구 필터 옵션 채우기 ── */
+function populateSigunguFilter(apts) {
+  const sel = $('filterSigungu')
+  if(!sel) return
+  const sggSet = new Set(apts.map(a => a.sigungu).filter(Boolean))
+  sel.innerHTML = '<option value="">전체 지역</option>'
+  ;[...sggSet].sort().forEach(sg => {
+    const opt = document.createElement('option')
+    opt.value = sg; opt.textContent = sg
+    sel.appendChild(opt)
+  })
+}
+
+/* ── 카드 렌더링 (별도 함수로 분리) ── */
+function renderCards(list) {
+  const lw = $('recList')
+  if(!lw) return
+  if(!list.length) {
+    lw.innerHTML='<div style="text-align:center;padding:40px;color:var(--muted);font-size:12px">필터 조건에 맞는 단지가 없어요</div>'
+    return
+  }
+  lw.innerHTML=''
+  list.forEach(apt => {
+    const p=apt.avgPrice||0, score=apt._score||0
+    const canBuy=apt._canBuy, blocked=apt._blocked
+    const loan=apt._loan||0, mon=apt._monthly||0
+    const selfNeed=apt._selfNeed||0, shortage=apt._shortage||0
+    const pyeong=Math.round((apt.area||0)/3.305)
+    const jsr=apt.jeonseRatio||0
+    const sg=apt.sigungu||''
+
+    let capHtml=''
+    if(blocked){
+      capHtml=`<div style="padding:8px 10px;background:rgba(248,113,113,.08);border:1px solid rgba(248,113,113,.2);border-radius:8px;font-size:11px;color:var(--down)">⛔ 대출 불가 (다주택 투기과열) — 전액 자기자본 ${fmt(p)}</div>`
+    } else if(canBuy){
+      capHtml=`<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:5px;margin-bottom:5px">
+        <div style="background:rgba(74,222,128,.07);border:1px solid rgba(74,222,128,.15);border-radius:8px;padding:6px;text-align:center"><div style="font-size:9px;color:var(--muted);margin-bottom:2px">대출</div><div style="font-size:11px;font-weight:700;color:var(--blue)">${fmt(loan)}</div></div>
+        <div style="background:rgba(74,222,128,.07);border:1px solid rgba(74,222,128,.15);border-radius:8px;padding:6px;text-align:center"><div style="font-size:9px;color:var(--muted);margin-bottom:2px">월상환</div><div style="font-size:11px;font-weight:700;color:var(--gold)">${Math.round(mon/10000)}만</div></div>
+        <div style="background:rgba(74,222,128,.07);border:1px solid rgba(74,222,128,.15);border-radius:8px;padding:6px;text-align:center"><div style="font-size:9px;color:var(--muted);margin-bottom:2px">자기자본</div><div style="font-size:11px;font-weight:700;color:var(--up)">${fmt(selfNeed)}</div></div>
+        <div style="background:rgba(74,222,128,.07);border:1px solid rgba(74,222,128,.15);border-radius:8px;padding:6px;text-align:center"><div style="font-size:9px;color:var(--muted);margin-bottom:2px">전세가율</div><div style="font-size:11px;font-weight:700;color:${jsr>=60?'var(--up)':jsr>=40?'var(--gold)':'var(--muted)'}">${jsr>0?jsr+'%':'—'}</div></div>
+      </div>
+      <div style="font-size:11px;color:var(--up)">✓ 구매 가능</div>`
+    } else {
+      capHtml=`<div style="display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-bottom:5px">
+        <div style="background:var(--bg3);border-radius:8px;padding:6px;text-align:center"><div style="font-size:9px;color:var(--muted);margin-bottom:2px">대출 가능</div><div style="font-size:11px;font-weight:700;color:var(--blue)">${fmt(loan)}</div></div>
+        <div style="background:var(--bg3);border-radius:8px;padding:6px;text-align:center"><div style="font-size:9px;color:var(--muted);margin-bottom:2px">전세가율</div><div style="font-size:11px;font-weight:700;color:${jsr>=60?'var(--up)':jsr>=40?'var(--gold)':'var(--muted)'}">${jsr>0?jsr+'%':'—'}</div></div>
+      </div>
+      <div style="padding:7px 10px;background:rgba(248,113,113,.08);border:1px solid rgba(248,113,113,.2);border-radius:8px;font-size:11px;color:var(--down)">
+        ✗ 자기자본 <strong>${fmt(shortage)}</strong> 부족
+      </div>`
+    }
+
+    const card=document.createElement('div')
+    card.className=`rec-card${score>=80?' top':''}`
+    card.innerHTML=`
+      <div class="rec-card-header">
+        <div>
+          <div class="rc-name">${apt.name}</div>
+          <div class="rc-loc">${apt.dong||''} · ${pyeong}평(${Math.round(apt.area||0)}㎡)${apt.built?' · '+apt.built+'년':''}</div>
+        </div>
+        <div class="rc-score">
+          <span class="score-badge ${canBuy?'score-buy':blocked?'score-wait':'score-neutral'}">${blocked?'⛔대출불가':canBuy?'✦구매가능':'△자본부족'}</span>
+          <div class="score-num" style="color:${canBuy?'var(--up)':blocked?'var(--down)':'var(--muted)'}">${score}</div>
+        </div>
+      </div>
+      <div class="rc-stats">
+        <div class="rcs"><div class="rcs-label">평균 실거래가</div><div class="rcs-val" style="color:var(--gold)">${fmt(p)}</div></div>
+        <div class="rcs"><div class="rcs-label">최저~최고</div><div class="rcs-val" style="font-size:10px">${fmt(apt.minPrice)}~${fmt(apt.maxPrice)}</div></div>
+        <div class="rcs"><div class="rcs-label">거래 ${apt.count}건</div><div class="rcs-val">${apt.trades?.[0]?.date||'—'}</div></div>
+      </div>
+      <div style="padding-top:10px;border-top:1px solid var(--border)">${capHtml}</div>`
+    card.addEventListener('click',()=>openSheet(apt))
+    lw.appendChild(card)
+  })
+}
+
 /* ── 추천 단지 ── */
 async function goToRec() {
   navTo('rec')
@@ -834,8 +1071,17 @@ async function goToRec() {
   lw.innerHTML='<div style="text-align:center;padding:40px;color:var(--muted)">실거래 데이터 불러오는 중...</div>'
   $('lbar')?.classList.add('on')
 
+  // 필터 이벤트 연결
+  ;['filterSigungu','filterJsr','filterBuy','sortBy'].forEach(id => {
+    const el = $(id)
+    if(el && !el._bound) { el.addEventListener('change', applyFilter); el._bound=true }
+  })
+  ;['viewList','viewMap'].forEach(id => {
+    const el = $(id)
+    if(el && !el._bound) { el.addEventListener('click', ()=>setView(id==='viewList'?'list':'map')); el._bound=true }
+  })
+
   try {
-    // 선택 지역별로 sido 파라미터로 조회 (더 많은 데이터)
     const sidos = [...new Set(state.regions)]
     if(!sidos.length) sidos.push('서울')
 
@@ -846,16 +1092,16 @@ async function goToRec() {
       )
     )
 
-    const allApts = []
-    results.forEach(res=>{ if(res.ok&&res.data) allApts.push(...res.data) })
+    const rawApts = []
+    results.forEach(res=>{ if(res.ok&&res.data) rawApts.push(...res.data) })
 
-    // 중복제거 + 평수필터 + 예산필터
+    // 중복제거 + 평수필터 + 예산필터 + 대출계산 캐시
     const seen = new Set()
     const sizeRanges = {'10':[23,46],'20':[46,76],'30':[76,105],'40':[105,140],'50':[140,999]}
     const selSize = state.sizes?.[0]||'all'
     const budgetMax = state.power * 10000 * 1.3
 
-    const filtered = allApts.filter(apt=>{
+    allAptData = rawApts.filter(apt=>{
       const key = (apt.sggCd||'')+'_'+apt.name
       if(seen.has(key)) return false
       seen.add(key)
@@ -865,40 +1111,11 @@ async function goToRec() {
         if((apt.area||0)<lo || (apt.area||0)>=hi) return false
       }
       return true
-    })
-
-    // 구매 가능 순 정렬
-    filtered.sort((a,b)=>{
-      const calcShort = apt => {
-        const p = apt.avgPrice||0
-        const sg = apt.sigungu||apt.dong||''
-        const h = state.houseCount
-        const superSpec = ['강남구','서초구','송파구','용산구'].some(z=>sg.includes(z))
-        const isSeoul   = sg.includes('서울')
-        const ltv = superSpec?(h===0?.5:h===1?.3:0):isSeoul?(h===0?.7:h===1?.6:.5):(h===0?.7:h===1?.6:.5)
-        if(superSpec&&h>=2) return 99999999999
-        const r=3.6/100/12,n=30*12
-        const ltvL = p<=900000000?p*ltv:900000000*ltv+(p-900000000)*Math.max(ltv-.1,0)
-        const dsrL = (state.income*10000)/12*.4/(r*(1+r)**n/((1+r)**n-1))
-        return (p-Math.min(ltvL,dsrL)) - state.asset*10000
-      }
-      const sa=calcShort(a), sb=calcShort(b)
-      const ga = sa>9999999999?2:sa<=0?0:1
-      const gb = sb>9999999999?2:sb<=0?0:1
-      if(ga!==gb) return ga-gb
-      return ga===0?a.avgPrice-b.avgPrice:sa-sb
-    })
-
-    if(!filtered.length) {
-      lw.innerHTML='<div style="text-align:center;padding:40px;color:var(--muted);font-size:12px">조건에 맞는 단지가 없어요<br>지역을 추가하거나 예산을 늘려보세요</div>'
-      return
-    }
-
-    lw.innerHTML=''
-    filtered.forEach(apt=>{
-      const p = apt.avgPrice||0
-      const sg = apt.sigungu||apt.dong||''
-      const h = state.houseCount
+    }).map(apt => {
+      // 대출 계산 결과를 apt에 캐시
+      const p=apt.avgPrice||0
+      const sg=apt.sigungu||apt.dong||''
+      const h=state.houseCount
       const superSpec=['강남구','서초구','송파구','용산구'].some(z=>sg.includes(z))
       const isSeoul=sg.includes('서울')
       const ltv=superSpec?(h===0?.5:h===1?.3:0):isSeoul?(h===0?.7:h===1?.6:.5):(h===0?.7:h===1?.6:.5)
@@ -907,57 +1124,29 @@ async function goToRec() {
       const ltvL=blocked?0:p<=900000000?p*ltv:900000000*ltv+(p-900000000)*Math.max(ltv-.1,0)
       const dsrL=(state.income*10000)/12*.4/(r*(1+r)**n/((1+r)**n-1))
       const loan=Math.min(ltvL,dsrL)
-      const mon=loan>0?Math.round(loan*r*(1+r)**n/((1+r)**n-1)/10000):0
-      const selfNeed=p-loan, shortage=selfNeed-state.asset*10000
+      const mon=loan>0?loan*r*(1+r)**n/((1+r)**n-1):0
+      const selfNeed=p-loan
+      const shortage=selfNeed-state.asset*10000
       const canBuy=!blocked&&shortage<=0
-      const pyeong=Math.round((apt.area||0)/3.305)
       const score=Math.min(95,55+(apt.count>=10?15:apt.count>=5?8:0)+(canBuy?12:0)+(superSpec?10:isSeoul?5:0)+Math.min(apt.count||0,5))
-      const jsr=apt.jeonseRatio||0
-
-      // 자본 상태
-      let capHtml=''
-      if(blocked){
-        capHtml=`<div style="padding:8px 10px;background:rgba(248,113,113,.08);border:1px solid rgba(248,113,113,.2);border-radius:8px;font-size:11px;color:var(--down)">⛔ 대출 불가 (다주택 투기과열) — 전액 자기자본 ${fmt(p)}</div>`
-      } else if(canBuy){
-        capHtml=`<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:5px;margin-bottom:5px">
-          <div style="background:rgba(74,222,128,.07);border:1px solid rgba(74,222,128,.15);border-radius:8px;padding:6px;text-align:center"><div style="font-size:9px;color:var(--muted);margin-bottom:2px">대출</div><div style="font-size:11px;font-weight:700;color:var(--blue)">${fmt(loan)}</div></div>
-          <div style="background:rgba(74,222,128,.07);border:1px solid rgba(74,222,128,.15);border-radius:8px;padding:6px;text-align:center"><div style="font-size:9px;color:var(--muted);margin-bottom:2px">월상환</div><div style="font-size:11px;font-weight:700;color:var(--gold)">${mon}만</div></div>
-          <div style="background:rgba(74,222,128,.07);border:1px solid rgba(74,222,128,.15);border-radius:8px;padding:6px;text-align:center"><div style="font-size:9px;color:var(--muted);margin-bottom:2px">자기자본</div><div style="font-size:11px;font-weight:700;color:var(--up)">${fmt(selfNeed)}</div></div>
-          <div style="background:rgba(74,222,128,.07);border:1px solid rgba(74,222,128,.15);border-radius:8px;padding:6px;text-align:center"><div style="font-size:9px;color:var(--muted);margin-bottom:2px">전세가율</div><div style="font-size:11px;font-weight:700;color:${jsr>=60?'var(--up)':jsr>=40?'var(--gold)':'var(--muted)'}">${jsr>0?jsr+'%':'—'}</div></div>
-        </div>
-        <div style="font-size:11px;color:var(--up)">✓ 구매 가능 · ${superSpec?'🔴투기과열':isSeoul?'🟡조정대상':'🟢일반'} LTV${ltv*100}%</div>`
-      } else {
-        capHtml=`<div style="display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-bottom:5px">
-          <div style="background:var(--bg3);border-radius:8px;padding:6px;text-align:center"><div style="font-size:9px;color:var(--muted);margin-bottom:2px">대출 가능</div><div style="font-size:11px;font-weight:700;color:var(--blue)">${fmt(loan)}</div></div>
-          <div style="background:var(--bg3);border-radius:8px;padding:6px;text-align:center"><div style="font-size:9px;color:var(--muted);margin-bottom:2px">전세가율</div><div style="font-size:11px;font-weight:700;color:${jsr>=60?'var(--up)':jsr>=40?'var(--gold)':'var(--muted)'}">${jsr>0?jsr+'%':'—'}</div></div>
-        </div>
-        <div style="padding:7px 10px;background:rgba(248,113,113,.08);border:1px solid rgba(248,113,113,.2);border-radius:8px;font-size:11px;color:var(--down)">
-          ✗ 자기자본 <strong>${fmt(shortage)}</strong> 부족 · 필요 ${fmt(selfNeed)} / 보유 ${fmt(state.asset*10000)}
-        </div>`
-      }
-
-      const card=document.createElement('div')
-      card.className=`rec-card${score>=80?' top':''}`
-      card.innerHTML=`
-        <div class="rec-card-header">
-          <div>
-            <div class="rc-name">${apt.name}</div>
-            <div class="rc-loc">${apt.dong||''} · ${pyeong}평(${Math.round(apt.area||0)}㎡)${apt.built?' · '+apt.built+'년':''}</div>
-          </div>
-          <div class="rc-score">
-            <span class="score-badge ${canBuy?'score-buy':blocked?'score-wait':'score-neutral'}">${blocked?'⛔대출불가':canBuy?'✦구매가능':'△자본부족'}</span>
-            <div class="score-num" style="color:${canBuy?'var(--up)':blocked?'var(--down)':'var(--muted)'}">${score}</div>
-          </div>
-        </div>
-        <div class="rc-stats">
-          <div class="rcs"><div class="rcs-label">평균 실거래가</div><div class="rcs-val" style="color:var(--gold)">${fmt(p)}</div></div>
-          <div class="rcs"><div class="rcs-label">최저~최고</div><div class="rcs-val" style="font-size:10px">${fmt(apt.minPrice)}~${fmt(apt.maxPrice)}</div></div>
-          <div class="rcs"><div class="rcs-label">거래 ${apt.count}건</div><div class="rcs-val">${apt.trades?.[0]?.date||'—'}</div></div>
-        </div>
-        <div style="padding-top:10px;border-top:1px solid var(--border)">${capHtml}</div>`
-      card.addEventListener('click',()=>openSheet(apt))
-      lw.appendChild(card)
+      return { ...apt, _loan:loan, _monthly:mon, _selfNeed:selfNeed, _shortage:shortage, _canBuy:canBuy, _blocked:blocked, _score:score }
     })
+
+    if(!allAptData.length) {
+      lw.innerHTML='<div style="text-align:center;padding:40px;color:var(--muted);font-size:12px">조건에 맞는 단지가 없어요<br>지역을 추가하거나 예산을 늘려보세요</div>'
+      return
+    }
+
+    // 시군구 필터 옵션 채우기
+    populateSigunguFilter(allAptData)
+
+    // 결과 수 표시
+    const rc = $('recCount')
+    if(rc) rc.textContent = `${allAptData.length}개 단지`
+
+    // 카드 렌더링
+    renderCards(getFilteredSorted())
+
   } catch(e){
     console.error('추천 오류:',e)
     lw.innerHTML='<div style="text-align:center;padding:40px;color:var(--down)">데이터 로드 실패</div>'
