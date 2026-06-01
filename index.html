@@ -950,7 +950,6 @@ function runAiAnalysis(apt) {
   if(power>=price){reasons.push({icon:'💰',text:`총 구매력 ${fmt(power)}으로 구매 가능`,good:true})}
   else{reasons.push({icon:'💰',text:`구매력 ${fmt(power-price)} 부족`,good:false})}
 
-  score=Math.min(Math.max(score,20),95)
   const verdict=score>=80?'✦ 매수 추천':score>=65?'◈ 조건부 추천':score>=50?'△ 관망':'✕ 매수 비추'
   const vColor=score>=80?'var(--up)':score>=65?'var(--gold)':score>=50?'var(--muted)':'var(--down)'
 
@@ -1154,11 +1153,11 @@ async function updateMapMarkers() {
           const label  = apt.name.length > 5 ? apt.name.slice(0,5)+'..' : apt.name
 
           const div = document.createElement('div')
-          div.style.cssText = `background:${color};color:#0a0c12;padding:4px 8px;border-radius:14px;font-size:10px;font-weight:700;white-space:nowrap;box-shadow:0 2px 8px rgba(0,0,0,.4);cursor:pointer;line-height:1.4;text-align:center`
+          div.style.cssText = `background:${color};color:#0a0c12;padding:4px 8px;border-radius:14px;font-size:10px;font-weight:700;white-space:nowrap;box-shadow:0 2px 8px rgba(0,0,0,.4);cursor:pointer;line-height:1.4;text-align:center;position:relative;z-index:999`
           div.innerHTML = `${label}<br><span style="font-size:9px">${(apt.avgPrice/100000000).toFixed(1)}억</span>`
-          div.addEventListener('click', () => openSheet(apt))
+          div.onclick = (e) => { e.stopPropagation(); openSheet(apt) }
 
-          const overlay = new kakao.maps.CustomOverlay({ position:pos, content:div, yAnchor:1.3 })
+          const overlay = new kakao.maps.CustomOverlay({ position:pos, content:div, yAnchor:1.3, zIndex:3 })
           overlay.setMap(kakaoMap)
           kakaoMap._overlays.push(overlay)
           placed++
