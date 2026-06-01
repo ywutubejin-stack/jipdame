@@ -835,18 +835,13 @@ async function goToRec() {
   $('lbar')?.classList.add('on')
 
   try {
-    // 선택 지역 코드 수집
-    const codes = []
-    for(const r of state.regions) {
-      const mapped = REGION_CODES[r]
-      if(mapped) codes.push(...mapped.split(','))
-    }
-    const uniqueCodes = [...new Set(codes)].slice(0,8)
-    if(!uniqueCodes.length) uniqueCodes.push('11680')
+    // 선택 지역별로 sido 파라미터로 조회 (더 많은 데이터)
+    const sidos = [...new Set(state.regions)]
+    if(!sidos.length) sidos.push('서울')
 
     const results = await Promise.all(
-      uniqueCodes.slice(0,4).map(code =>
-        fetch(`${PROXY}?type=trade&code=${code}`, {headers:HDR})
+      sidos.slice(0,3).map(sido =>
+        fetch(`${PROXY}?type=trade&sido=${encodeURIComponent(sido)}`, {headers:HDR})
           .then(r=>r.json()).catch(()=>({ok:false,data:[]}))
       )
     )
