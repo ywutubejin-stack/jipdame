@@ -45,6 +45,9 @@ body{background:#07090f;}
 
 /* ── scroll ── */
 .scroll{flex:1;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;}
+#toTop{position:fixed;bottom:80px;right:16px;width:40px;height:40px;border-radius:50%;background:var(--bg3);border:1px solid var(--border2);color:var(--muted);font-size:18px;cursor:pointer;display:none;align-items:center;justify-content:center;box-shadow:0 2px 12px rgba(0,0,0,.3);z-index:100;transition:all .2s;}
+#toTop.show{display:flex;}
+#toTop:hover{background:var(--bg2);color:var(--gold);}
 .scroll::-webkit-scrollbar{width:3px;}
 .scroll::-webkit-scrollbar-thumb{background:rgba(255,255,255,.08);border-radius:2px;}
 
@@ -258,7 +261,7 @@ body{background:#07090f;}
   <div class="s-res" id="sRes"></div>
 </div>
 
-<div class="scroll">
+<div class="scroll" id="scrollEl">
 
 <div class="page active" id="page-home">
 <div class="onboard">
@@ -433,28 +436,90 @@ body{background:#07090f;}
 <div class="page" id="page-mkt">
 <div class="mkt-page">
   <div style="font-family:var(--serif);font-size:20px;font-weight:700;margin-bottom:3px">시장 현황</div>
-  <div style="font-size:11px;color:var(--muted);margin-bottom:14px">전국 실거래가 데이터 · 실시간 연동</div>
+  <div style="font-size:11px;color:var(--muted);margin-bottom:12px">전국 실거래가 데이터 · 실시간 연동</div>
+
+  <!-- 지역 선택 -->
+  <div style="display:flex;gap:6px;margin-bottom:12px;overflow-x:auto;scrollbar-width:none;padding-bottom:2px">
+    <select id="mktSido" style="background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:6px 10px;font-size:12px;cursor:pointer;flex-shrink:0">
+      <option value="sido">서울 전체</option>
+      <option value="11680">강남구</option>
+      <option value="11650">서초구</option>
+      <option value="11710">송파구</option>
+      <option value="11440">마포구</option>
+      <option value="11170">용산구</option>
+      <option value="11200">성동구</option>
+      <option value="11215">광진구</option>
+      <option value="11740">강동구</option>
+      <option value="11560">영등포구</option>
+      <option value="11590">동작구</option>
+      <option value="11620">관악구</option>
+      <option value="11470">양천구</option>
+      <option value="11500">강서구</option>
+      <option value="11350">노원구</option>
+      <option value="11320">도봉구</option>
+      <option value="11290">성북구</option>
+      <option value="11440">마포구</option>
+      <option value="11380">은평구</option>
+      <option value="11410">서대문구</option>
+      <option value="11530">구로구</option>
+      <option value="11545">금천구</option>
+      <option value="11110">종로구</option>
+      <option value="11140">중구</option>
+      <option value="11230">동대문구</option>
+      <option value="11260">중랑구</option>
+      <option value="11305">강북구</option>
+    </select>
+    <select id="mktSort" style="background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:6px 10px;font-size:12px;cursor:pointer;flex-shrink:0">
+      <option value="price">가격 높은순</option>
+      <option value="count">거래량 많은순</option>
+      <option value="jsr">전세가율 높은순</option>
+    </select>
+  </div>
 
   <div class="metrics">
     <div class="mc"><div class="mc-label">기준금리</div><div class="mc-val" id="mRate">—</div></div>
     <div class="mc"><div class="mc-label">평균 실거래가</div><div class="mc-val" id="mAvg">—</div></div>
     <div class="mc"><div class="mc-label">거래량</div><div class="mc-val" id="mVol">—</div></div>
-    <div class="mc"><div class="mc-label">수집 단지</div><div class="mc-val" id="mTotalApts">—</div></div>
+    <div class="mc"><div class="mc-label">단지 수</div><div class="mc-val" id="mTotalApts">—</div></div>
   </div>
 
   <div class="card" style="margin-top:12px">
-    <div class="card-title"><strong>강남구 실거래 TOP 단지</strong></div>
+    <div class="card-title" id="mktCardTitle"><strong>실거래 TOP 단지</strong></div>
     <table style="width:100%;border-collapse:collapse;font-size:12px">
       <thead>
         <tr style="color:var(--muted);font-size:10px;border-bottom:1px solid var(--border)">
           <th style="text-align:left;padding:8px 4px">단지</th>
           <th style="text-align:center;padding:8px 4px">면적</th>
           <th style="text-align:right;padding:8px 4px">평균가</th>
+          <th style="text-align:right;padding:8px 4px">전세가율</th>
           <th style="text-align:right;padding:8px 4px">거래</th>
         </tr>
       </thead>
       <tbody id="mktTbody"></tbody>
     </table>
+  </div>
+
+  <!-- 신고가/신저가 -->
+  <div style="margin-top:16px">
+    <div style="font-size:13px;font-weight:700;margin-bottom:10px">📊 신고가 · 신저가 <span style="font-size:10px;color:var(--muted);font-weight:400">전월 대비 1년 전 비교</span></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div class="card" style="padding:12px">
+        <div style="font-size:11px;font-weight:700;color:var(--up);margin-bottom:8px">🔺 신고가 경신</div>
+        <div id="mktHighList"><div style="color:var(--muted);font-size:11px;text-align:center;padding:12px">로딩 중...</div></div>
+      </div>
+      <div class="card" style="padding:12px">
+        <div style="font-size:11px;font-weight:700;color:var(--down);margin-bottom:8px">🔻 신저가 경신</div>
+        <div id="mktLowList"><div style="color:var(--muted);font-size:11px;text-align:center;padding:12px">로딩 중...</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 최근 7일 신고 거래 -->
+  <div style="margin-top:16px">
+    <div style="font-size:13px;font-weight:700;margin-bottom:10px">🆕 최근 신고 거래 <span style="font-size:10px;color:var(--muted);font-weight:400">7일 이내 신고된 실거래</span></div>
+    <div class="card" style="padding:0">
+      <div id="mktRecentList"><div style="color:var(--muted);font-size:11px;text-align:center;padding:20px">로딩 중...</div></div>
+    </div>
   </div>
 </div>
 </div>
@@ -1214,31 +1279,136 @@ async function goToRec() {
 }
 
 /* ── 시장 현황 ── */
-async function renderMkt() {
+async function renderMkt(skipRate = false) {
+  const sidoSel = $('mktSido')
+  const sortSel = $('mktSort')
+  const sidoVal = sidoSel?.value || 'sido'
+  const sortVal = sortSel?.value || 'price'
+
+  // 카드 제목 업데이트
+  const title = $('mktCardTitle')
+  const regionName = sidoSel?.options[sidoSel.selectedIndex]?.text || '서울 전체'
+  if(title) title.innerHTML = `<strong>${regionName} 실거래 TOP 단지</strong>`
+
+  const tb = $('mktTbody')
+  if(tb) tb.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:20px;color:var(--muted);font-size:12px">로딩 중...</td></tr>'
+
   try {
-    const [rateRes, tradeRes] = await Promise.all([
-      fetch(`${PROXY}?type=rate`,{headers:HDR}).then(r=>r.json()),
-      fetch(`${PROXY}?type=trade&code=11680`,{headers:HDR}).then(r=>r.json()),
-    ])
-    if(rateRes.ok&&rateRes.data?.length){
-      const l=rateRes.data[rateRes.data.length-1]
-      if($('mRate')) $('mRate').textContent=l.rate.toFixed(2)+'%'
+    const promises = []
+
+    // 금리는 처음 한 번만
+    if(!skipRate) {
+      promises.push(fetch(`${PROXY}?type=rate`,{headers:HDR}).then(r=>r.json()))
     }
-    if(tradeRes.ok&&tradeRes.data?.length){
-      const avg=tradeRes.data.reduce((s,t)=>s+(t.avgPrice||0),0)/tradeRes.data.length
-      if($('mAvg')) $('mAvg').textContent=fmt(avg)
-      if($('mVol')) $('mVol').textContent=tradeRes.count+'건'
-      const tb=$('mktTbody'); if(!tb) return
-      tb.innerHTML=''
-      tradeRes.data.slice(0,6).forEach((t,i)=>{
-        const tr=document.createElement('tr'); tr.className='clickable'
-        tr.innerHTML=`<td><div style="font-weight:500;font-size:12px">${t.name}</div><div style="font-size:10px;color:var(--muted)">${t.dong||''}</div></td><td>${Math.round(t.area||0)}㎡</td><td><strong>${fmt(t.avgPrice)}</strong></td><td style="font-size:10px;color:var(--muted)">${t.count}건</td>`
-        tr.addEventListener('click',()=>openSheet(t))
+
+    // 지역 데이터
+    const tradeUrl = sidoVal === 'sido'
+      ? `${PROXY}?type=trade&sido=서울`
+      : `${PROXY}?type=trade&code=${sidoVal}`
+    promises.push(fetch(tradeUrl,{headers:HDR}).then(r=>r.json()))
+
+    const results = await Promise.all(promises)
+    const rateRes  = skipRate ? null : results[0]
+    const tradeRes = skipRate ? results[0] : results[1]
+
+    if(rateRes?.ok && rateRes.data?.length) {
+      const l = rateRes.data[rateRes.data.length-1]
+      if($('mRate')) $('mRate').textContent = l.rate.toFixed(2)+'%'
+    }
+
+    if(tradeRes?.ok && tradeRes.data?.length) {
+      let data = [...tradeRes.data]
+
+      // 정렬
+      if(sortVal === 'count')   data.sort((a,b)=>(b.count||0)-(a.count||0))
+      else if(sortVal === 'jsr') data.sort((a,b)=>(b.jeonseRatio||0)-(a.jeonseRatio||0))
+      else                       data.sort((a,b)=>(b.avgPrice||0)-(a.avgPrice||0))
+
+      const avg = data.reduce((s,t)=>s+(t.avgPrice||0),0)/data.length
+      if($('mAvg'))       $('mAvg').textContent       = fmt(avg)
+      if($('mVol'))       $('mVol').textContent       = tradeRes.count+'건'
+      if($('mTotalApts')) $('mTotalApts').textContent = data.length+'개'
+
+      if(!tb) return
+      tb.innerHTML = ''
+      data.slice(0, 15).forEach(t => {
+        const jsr = t.jeonseRatio || 0
+        const tr  = document.createElement('tr')
+        tr.style.cursor = 'pointer'
+        tr.style.borderBottom = '1px solid var(--border)'
+        tr.innerHTML = `
+          <td style="padding:8px 4px">
+            <div style="font-weight:500;font-size:12px">${t.name}</div>
+            <div style="font-size:10px;color:var(--muted)">${t.dong||''}</div>
+          </td>
+          <td style="text-align:center;padding:8px 4px;font-size:11px">${Math.round(t.area||0)}㎡</td>
+          <td style="text-align:right;padding:8px 4px"><strong style="color:var(--gold)">${fmt(t.avgPrice)}</strong></td>
+          <td style="text-align:right;padding:8px 4px;font-size:11px;color:${jsr>=60?'var(--up)':jsr>=40?'var(--gold)':'var(--muted)'}">${jsr>0?jsr+'%':'—'}</td>
+          <td style="text-align:right;padding:8px 4px;font-size:11px;color:var(--muted)">${t.count}건</td>`
+        tr.addEventListener('click', ()=>openSheet(t))
         tb.appendChild(tr)
       })
     }
-  } catch(e){ console.warn('시장현황 오류:',e) }
+  } catch(e) { console.warn('시장현황 오류:',e) }
+
+  // 신고가/신저가 (처음 한 번만)
+  if(!skipRate) loadHighlights()
 }
+
+async function loadHighlights() {
+  try {
+    const res  = await fetch(`${PROXY}?type=highlight`, {headers:HDR})
+    const data = await res.json()
+    if(!data.ok) return
+
+    const renderList = (items, el, isHigh) => {
+      if(!el) return
+      if(!items.length) { el.innerHTML='<div style="color:var(--muted);font-size:11px;text-align:center;padding:8px">데이터 없음</div>'; return }
+      el.innerHTML = items.map(t => `
+        <div style="padding:7px 0;border-bottom:1px solid rgba(255,255,255,.04);cursor:pointer" onclick="">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <div>
+              <div style="font-size:11px;font-weight:600">${t.name}</div>
+              <div style="font-size:9px;color:var(--muted)">${t.dong||''} · ${Math.round(t.area||0)}㎡</div>
+            </div>
+            <div style="text-align:right">
+              <div style="font-size:12px;font-weight:700;color:${isHigh?'var(--up)':'var(--down)'}">${fmt(t.price)}</div>
+              <div style="font-size:9px;color:${isHigh?'var(--up)':'var(--down)'}">
+                ${isHigh?'▲':'▼'} ${Math.abs(t.chgPct)}%
+              </div>
+            </div>
+          </div>
+        </div>`).join('')
+    }
+
+    renderList(data.newHighs, $('mktHighList'), true)
+    renderList(data.newLows,  $('mktLowList'),  false)
+
+    // 최근 7일 신고 거래
+    const recentEl = $('mktRecentList')
+    if(recentEl) {
+      const trades = data.recentTrades || []
+      if(!trades.length) {
+        recentEl.innerHTML = '<div style="color:var(--muted);font-size:11px;text-align:center;padding:20px">최근 7일 신고 거래 없음</div>'
+      } else {
+        recentEl.innerHTML = trades.map(t => `
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 14px;border-bottom:1px solid rgba(255,255,255,.04);cursor:pointer">
+            <div>
+              <div style="font-size:12px;font-weight:600">${t.name}</div>
+              <div style="font-size:10px;color:var(--muted)">${t.dong||''} · ${Math.round(t.area||0)}㎡ · ${t.floor||''}층</div>
+              <div style="font-size:10px;color:var(--muted)">계약 ${t.date} · 신고 ${t.rgstDate}</div>
+            </div>
+            <div style="text-align:right;flex-shrink:0;margin-left:8px">
+              <div style="font-size:14px;font-weight:700;color:var(--gold)">${fmt(t.price)}</div>
+            </div>
+          </div>`).join('')
+      }
+    }
+  } catch(e) { console.warn('신고가/신저가 오류:', e) }
+}
+
+// 지역/정렬 변경 시 재조회
+window.onMktChange = () => renderMkt(true)
 
 /* ── 칩 이벤트 ── */
 function initChips() {
@@ -1343,6 +1513,23 @@ window.addEventListener('DOMContentLoaded', () => {
   initChips()
   updateSliderUI()
   renderMkt()
+
+  // 시장현황 지역/정렬 변경
+  $('mktSido')?.addEventListener('change', ()=>renderMkt(true))
+  $('mktSort')?.addEventListener('change', ()=>renderMkt(true))
+
+  // 맨 위로 버튼
+  const scrollEl = $('scrollEl')
+  const toTop = $('toTop')
+  scrollEl?.addEventListener('scroll', () => {
+    if(scrollEl.scrollTop > 300) toTop?.classList.add('show')
+    else toTop?.classList.remove('show')
+  })
+
+  function scrollToTop() {
+    $('scrollEl')?.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+  window.scrollToTop = scrollToTop
 
   if('serviceWorker' in navigator)
     navigator.serviceWorker.register('sw.js').catch(()=>{})
