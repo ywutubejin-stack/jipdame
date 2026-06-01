@@ -389,8 +389,8 @@ body{background:#07090f;}
 
   <!-- 뷰 전환 탭 -->
   <div style="display:flex;gap:6px;margin-bottom:10px">
-    <button id="viewList" onclick="setView('list')" style="flex:1;padding:8px;border-radius:10px;border:1px solid var(--gold);background:rgba(232,200,122,.15);color:var(--gold);font-size:12px;font-weight:600;cursor:pointer">≡ 목록</button>
-    <button id="viewMap" onclick="setView('map')" style="flex:1;padding:8px;border-radius:10px;border:1px solid var(--border);background:transparent;color:var(--muted);font-size:12px;font-weight:600;cursor:pointer">🗺 지도</button>
+    <button id="viewList" style="flex:1;padding:8px;border-radius:10px;border:1px solid var(--gold);background:rgba(232,200,122,.15);color:var(--gold);font-size:12px;font-weight:600;cursor:pointer">≡ 목록</button>
+    <button id="viewMap" style="flex:1;padding:8px;border-radius:10px;border:1px solid var(--border);background:transparent;color:var(--muted);font-size:12px;font-weight:600;cursor:pointer">🗺 지도</button>
   </div>
 
   <!-- 필터/정렬 바 -->
@@ -909,38 +909,69 @@ function initMap() {
 /* ── 지도 마커 업데이트 ── */
 async function updateMapMarkers() {
   if(!kakaoMap || typeof kakao === 'undefined') return
-  const filtered = getFilteredSorted().slice(0, 50) // 최대 50개
+  const filtered = getFilteredSorted().slice(0, 30) // 최대 30개
   const geocoder = new kakao.maps.services.Geocoder()
   const bounds = new kakao.maps.LatLngBounds()
+  let placed = 0
+
+  // 기존 오버레이 제거
+  kakaoMap._overlays?.forEach(o => o.setMap(null))
+  kakaoMap._overlays = []
 
   for(const apt of filtered) {
-    const addr = `${apt.sigungu||''} ${apt.dong||''} ${apt.jibun||''}`
+    // 시군구+동 으로 검색 (지번보다 빠름)
+    const addr = `${apt.sigungu||''} ${apt.dong||''}`.trim()
+    if(!addr) continue
+
     await new Promise(resolve => {
-      geocoder.addressSearch(addr.trim(), (result, status) => {
-        if(status === kakao.maps.services.Status.OK) {
-          const pos = new kakao.maps.LatLng(result[0].y, result[0].x)
+      geocoder.addressSearch(addr, (result, status) => {
+        if(status === kakao.maps.services.Status.OK && result[0]) {
+          const pos = new kakao.maps.LatLng(+result[0].y, +result[0].x)
           bounds.extend(pos)
-          const jsr = apt.jeonseRatio||0
           const canBuy = apt._canBuy
+          const color  = canBuy ? '#4ade80' : apt._blocked ? '#f87171' : '#e8c87a'
+          const label  = apt.name.length > 5 ? apt.name.slice(0,5)+'..' : apt.name
 
-          // 커스텀 마커
-          const content = `<div style="background:${canBuy?'#4ade80':apt._blocked?'#f87171':'#e8c87a'};color:#0a0c12;padding:4px 8px;border-radius:20px;font-size:10px;font-weight:700;white-space:nowrap;box-shadow:0 2px 8px rgba(0,0,0,.3)">${apt.name.length>6?apt.name.slice(0,6)+'..':apt.name}<br>${fmt(apt.avgPrice)}</div>`
-          const marker = new kakao.maps.CustomOverlay({ position:pos, content, yAnchor:1.3 })
-          marker.setMap(kakaoMap)
-
-          // 클릭 이벤트
-          marker.getContent = () => content
           const div = document.createElement('div')
-          div.innerHTML = content
-          div.style.cursor = 'pointer'
+          div.style.cssText = `background:${color};color:#0a0c12;padding:4px 8px;border-radius:16px;font-size:10px;font-weight:700;white-space:nowrap;box-shadow:0 2px 8px rgba(0,0,0,.4);cursor:pointer;line-height:1.4;text-align:center`
+          div.innerHTML = `${label}<br><span style="font-size:9px">${(apt.avgPrice/100000000).toFixed(1)}억</span>`
           div.addEventListener('click', () => openSheet(apt))
-          marker.setContent(div.innerHTML)
+
+          const overlay = new kakao.maps.CustomOverlay({ position:pos, content:div, yAnchor:1.2 })
+          overlay.setMap(kakaoMap)
+          kakaoMap._overlays.push(overlay)
+          placed++
         }
         resolve()
       })
     })
+
+    if(placed > 0 && placed % 5 === 0) {
+      await new Promise(r => setTimeout(r, 50)) // rate limit 방지
+    }
   }
+
   if(!bounds.isEmpty()) kakaoMap.setBounds(bounds)
+  console.log(`[지도] ${placed}개 마커 표시`)
+}
+
+function populateSigunguFilter(apts) {
+  const sel = $('filterSigungu')
+  if(!sel) return
+  // 선택한 시도에 해당하는 구만 표시
+  const sggSet = new Set(
+    apts.map(a => {
+      const sg = a.sigungu || ''
+      const parts = sg.trim().split(' ')
+      return parts[parts.length-1] || null
+    }).filter(Boolean)
+  )
+  sel.innerHTML = '<option value="">전체 지역</option>'
+  ;[...sggSet].sort().forEach(sg => {
+    const opt = document.createElement('option')
+    opt.value = sg; opt.textContent = sg
+    sel.appendChild(opt)
+  })
 }
 
 /* ── 필터/정렬 적용 ── */
@@ -952,7 +983,7 @@ function getFilteredSorted() {
   const sort    = $('sortBy')?.value || 'default'
 
   // 필터
-  if(sigungu) list = list.filter(a => (a.sigungu||'').includes(sigungu) || (a.dong||'').includes(sigungu))
+  if(sigungu) list = list.filter(a => (a.sigungu||'').includes(sigungu))
   if(jsr)     list = list.filter(a => a.jeonseRatio >= jsr)
   if(buy === 'can')  list = list.filter(a => a._canBuy)
   if(buy === 'cant') list = list.filter(a => !a._canBuy && !a._blocked)
@@ -985,24 +1016,7 @@ function applyFilter() {
 }
 
 /* ── 시군구 필터 옵션 채우기 ── */
-function populateSigunguFilter(apts) {
-  const sel = $('filterSigungu')
-  if(!sel) return
-  const sggSet = new Set(
-    apts.map(a => {
-      const sg = a.sigungu || ''
-      const parts = sg.trim().split(' ')
-      return parts[parts.length-1] || sg
-    }).filter(Boolean)
-  )
-  sel.innerHTML = '<option value="">전체 지역</option>'
-  ;[...sggSet].sort().forEach(sg => {
-    const opt = document.createElement('option')
-    opt.value = sg; opt.textContent = sg
-    sel.appendChild(opt)
-  })
-}
-}
+
 
 /* ── 카드 렌더링 (별도 함수로 분리) ── */
 function renderCards(list) {
@@ -1145,23 +1159,7 @@ async function goToRec() {
     }
 
     // 시군구 필터 옵션 채우기
-   function populateSigunguFilter(apts) {
-  const sel = $('filterSigungu')
-  if(!sel) return
-  const sggSet = new Set(
-    apts.map(a => {
-      const sg = a.sigungu || ''
-      const parts = sg.trim().split(' ')
-      return parts[parts.length-1] || sg
-    }).filter(Boolean)
-  )
-  sel.innerHTML = '<option value="">전체 지역</option>'
-  ;[...sggSet].sort().forEach(sg => {
-    const opt = document.createElement('option')
-    opt.value = sg; opt.textContent = sg
-    sel.appendChild(opt)
-  })
-}
+    populateSigunguFilter(allAptData)
 
     // 결과 수 표시
     const rc = $('recCount')
@@ -1281,6 +1279,8 @@ window.addEventListener('DOMContentLoaded', () => {
   $('nb-fav') ?.addEventListener('click', ()=>navTo('fav'))
   $('ctaBtn') ?.addEventListener('click', goToRec)
   $('msEdit') ?.addEventListener('click', ()=>navTo('home'))
+  $('viewList')?.addEventListener('click', ()=>setView('list'))
+  $('viewMap') ?.addEventListener('click', ()=>setView('map'))
   $('searchToggle')?.addEventListener('click', toggleSearch)
   $('sClearBtn')   ?.addEventListener('click', clearSearch)
   $('sheetOverlay')?.addEventListener('click', closeSheet)
