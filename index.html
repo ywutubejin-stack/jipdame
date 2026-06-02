@@ -783,7 +783,8 @@ function openSheet(apt) {
 
   // 단지 기본정보 API 조회
   if(apt.sggCd && apt.name) {
-    fetch(`${PROXY}?type=info&name=${encodeURIComponent(apt.name)}&sggCd=${apt.sggCd}`, {headers:HDR})
+    const jibun = apt.jibun || ''
+    fetch(`${PROXY}?type=info&name=${encodeURIComponent(apt.name)}&sggCd=${apt.sggCd}&jibun=${encodeURIComponent(jibun)}`, {headers:HDR})
       .then(r=>r.json())
       .then(res => {
         if(!res.ok || !res.data) return
