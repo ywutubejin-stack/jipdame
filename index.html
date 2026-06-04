@@ -542,6 +542,12 @@ body{background:#07090f;}
     <div id="timingDesc" style="font-size:11px;color:var(--muted);margin-top:8px;line-height:1.6"></div>
   </div>
 
+  <!-- 점수 이유 -->
+  <div class="card" style="margin-bottom:12px">
+    <div style="font-size:11px;font-weight:600;color:var(--muted);margin-bottom:6px">📋 점수 산정 근거</div>
+    <div id="timingReasons"></div>
+  </div>
+
   <!-- 지표 그리드 -->
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px">
     <div class="card" style="padding:12px">
@@ -1565,16 +1571,51 @@ function applyTimingData(d) {
 
   // 종합 판단 점수
   let score = 50
+  const reasons = []
+
   // 금리: 낮을수록 매수 유리
-  if(rate) { if(rate.value<=2) score+=20; else if(rate.value<=3) score+=10; else if(rate.value<=4) score+=0; else score-=15 }
+  if(rate) {
+    if(rate.value<=2) { score+=20; reasons.push({icon:'🏦', text:`기준금리 ${rate.value}% — 저금리 구간, 매수 유리`, good:true}) }
+    else if(rate.value<=3) { score+=10; reasons.push({icon:'🏦', text:`기준금리 ${rate.value}% — 중저금리, 대출 부담 적정`, good:true}) }
+    else if(rate.value<=4) { score+=0; reasons.push({icon:'🏦', text:`기준금리 ${rate.value}% — 중금리, 신중한 접근 필요`, good:null}) }
+    else { score-=15; reasons.push({icon:'🏦', text:`기준금리 ${rate.value}% — 고금리, 대출 부담 큼`, good:false}) }
+  }
+
   // CPI: 안정적일수록 유리
-  if(cpi) { if(cpi.value<=2) score+=15; else if(cpi.value<=3) score+=5; else score-=10 }
+  if(cpi) {
+    if(cpi.value<=2) { score+=15; reasons.push({icon:'📊', text:`물가상승률 ${cpi.value.toFixed(1)}% — 안정적, 실질자산 가치 보전`, good:true}) }
+    else if(cpi.value<=3) { score+=5; reasons.push({icon:'📊', text:`물가상승률 ${cpi.value.toFixed(1)}% — 보통 수준`, good:null}) }
+    else { score-=10; reasons.push({icon:'📊', text:`물가상승률 ${cpi.value.toFixed(1)}% — 고물가, 구매력 약화`, good:false}) }
+  }
+
   // 환율: 낮을수록 유리
-  if(usd) { if(usd.value<=1200) score+=10; else if(usd.value<=1300) score+=5; else if(usd.value<=1400) score-=5; else score-=15 }
-  // 예금금리 vs 기준금리 갭: 갭이 클수록 부동산 유리
-  if(dep && rate) { const gap = dep.value - rate.value; if(gap>0.5) score+=10; else if(gap<0) score-=10 }
+  if(usd) {
+    if(usd.value<=1200) { score+=10; reasons.push({icon:'💵', text:`환율 ${Math.round(usd.value)}원 — 원화 강세, 외국인 투자 유입 유리`, good:true}) }
+    else if(usd.value<=1300) { score+=5; reasons.push({icon:'💵', text:`환율 ${Math.round(usd.value)}원 — 보통 수준`, good:null}) }
+    else if(usd.value<=1400) { score-=5; reasons.push({icon:'💵', text:`환율 ${Math.round(usd.value)}원 — 원화 약세`, good:false}) }
+    else { score-=15; reasons.push({icon:'💵', text:`환율 ${Math.round(usd.value)}원 — 원화 급약세, 경기 불안`, good:false}) }
+  }
+
+  // 예금금리 vs 기준금리
+  if(dep && rate) {
+    const gap = dep.value - rate.value
+    if(gap>0.5) { score+=10; reasons.push({icon:'🏦', text:`예금금리(${dep.value.toFixed(2)}%)가 기준금리보다 ${gap.toFixed(2)}%p 높음 — 예금 매력도 높아 부동산 관망 심리`, good:false}) }
+    else if(gap>=0) { score+=5; reasons.push({icon:'🏦', text:`예금금리 ${dep.value.toFixed(2)}% — 기준금리와 비슷`, good:null}) }
+    else { score+=0; reasons.push({icon:'🏦', text:`예금금리(${dep.value.toFixed(2)}%)가 기준금리보다 낮음 — 실물자산 선호 증가`, good:true}) }
+  }
 
   score = Math.min(Math.max(score, 10), 95)
+
+  // 점수 이유 표시
+  const reasonEl = $('timingReasons')
+  if(reasonEl) {
+    reasonEl.innerHTML = reasons.map(r => `
+      <div style="display:flex;gap:8px;padding:7px 0;border-bottom:1px solid rgba(255,255,255,.04);font-size:11px">
+        <span style="flex-shrink:0">${r.icon}</span>
+        <span style="color:${r.good===true?'var(--up)':r.good===false?'rgba(248,113,113,.8)':'var(--muted)'}">${r.text}</span>
+        <span style="margin-left:auto;flex-shrink:0;font-weight:700;color:${r.good===true?'var(--up)':r.good===false?'var(--down)':'var(--muted)'}">${r.good===true?'▲':r.good===false?'▼':'─'}</span>
+      </div>`).join('')
+  }
   const label = score>=75?'✦ 매수 적기':score>=60?'◈ 조건부 적기':score>=45?'△ 관망':' 매수 비추'
   const color = score>=75?'var(--up)':score>=60?'var(--gold)':score>=45?'var(--muted)':'var(--down)'
   const desc  = score>=75?'금리·물가·환율 등 거시경제 지표가 부동산 매수에 우호적입니다.'
@@ -1593,10 +1634,11 @@ function applyTimingData(d) {
   // 투자자산 비교
   const assets = $('tmAssets')
   if(assets && rate) {
+    const mort = last(d.mortgageRate)
     const items = [
-      { label:'기준금리',       val: rate.value.toFixed(2)+'%', color:'var(--gold)', pct: rate.value },
-      { label:'정기예금 (1년)', val: dep?.value ? dep.value.toFixed(2)+'%' : '—', color:'var(--blue)', pct: dep?.value||0 },
-      { label:'대출금리 추정',  val: (rate.value+1.5).toFixed(2)+'%', color:'var(--down)', pct: rate.value+1.5 },
+      { label:'기준금리',         val: rate.value.toFixed(2)+'%', color:'var(--gold)', pct: rate.value },
+      { label:'정기예금 (1년)',   val: dep?.value ? dep.value.toFixed(2)+'%' : '—', color:'var(--blue)', pct: dep?.value||0 },
+      { label:'주택담보대출(변동)', val: mort?.value ? mort.value.toFixed(2)+'%' : (rate.value+1.5).toFixed(2)+'% (추정)', color:'var(--down)', pct: mort?.value||rate.value+1.5 },
     ]
     assets.innerHTML = `
       <div style="font-size:10px;color:var(--muted);margin-bottom:6px">기준금리 대비 예금·대출 비교</div>
@@ -1639,7 +1681,7 @@ function drawTimingChart(canvasId, data, label, color, unit='') {
       plugins: { legend: { display: false } },
       scales: {
         x: { ticks: { color:'#888', font:{size:9}, maxTicksLimit:8 }, grid: { color:'rgba(255,255,255,.04)' } },
-        y: { ticks: { color:'#888', font:{size:9}, callback: v=>v+unit }, grid: { color:'rgba(255,255,255,.04)' } }
+        y: { ticks: { color:'#888', font:{size:9}, callback: v => typeof v === 'number' ? (Number.isInteger(v) ? v+unit : v.toFixed(1)+unit) : v+unit }, grid: { color:'rgba(255,255,255,.04)' } }
       }
     }
   })
