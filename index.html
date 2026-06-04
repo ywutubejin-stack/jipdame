@@ -532,20 +532,38 @@ body{background:#07090f;}
 <div class="page" id="page-timing">
 <div class="mkt-page">
   <div style="font-family:var(--serif);font-size:20px;font-weight:700;margin-bottom:3px">매수 타이밍</div>
-  <div style="font-size:11px;color:var(--muted);margin-bottom:14px">거시경제 지표 기반 매수 적기 분석</div>
+  <div style="font-size:11px;color:var(--muted);margin-bottom:14px">거시경제 지표로 보는 지금 집 사도 될까요?</div>
 
   <!-- 종합 판단 -->
-  <div id="timingVerdict" class="card" style="margin-bottom:12px;text-align:center;padding:20px">
-    <div style="font-size:11px;color:var(--muted);margin-bottom:8px">집담 매수 타이밍 점수</div>
-    <div id="timingScore" style="font-family:var(--serif);font-size:56px;font-weight:700;line-height:1;color:var(--gold)">—</div>
-    <div id="timingLabel" style="font-size:14px;font-weight:600;margin-top:6px;color:var(--muted)">분석 중...</div>
-    <div id="timingDesc" style="font-size:11px;color:var(--muted);margin-top:8px;line-height:1.6"></div>
+  <div id="timingVerdict" class="card" style="margin-bottom:12px;padding:20px">
+    <div style="display:flex;align-items:center;gap:16px">
+      <div style="text-align:center;flex-shrink:0">
+        <div id="timingScore" style="font-family:var(--serif);font-size:56px;font-weight:700;line-height:1;color:var(--gold)">—</div>
+        <div style="font-size:10px;color:var(--muted);margin-top:2px">/ 100점</div>
+      </div>
+      <div>
+        <div id="timingLabel" style="font-size:16px;font-weight:700;margin-bottom:6px;color:var(--muted)">분석 중...</div>
+        <div id="timingDesc" style="font-size:12px;color:var(--muted);line-height:1.7"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 쉬운 설명 -->
+  <div class="card" style="margin-bottom:12px">
+    <div style="font-size:12px;font-weight:700;margin-bottom:10px">🤔 지금 집을 사면 어떨까요?</div>
+    <div id="timingExplain" style="font-size:12px;line-height:1.9;color:var(--muted)">분석 중...</div>
   </div>
 
   <!-- 점수 이유 -->
   <div class="card" style="margin-bottom:12px">
-    <div style="font-size:11px;font-weight:600;color:var(--muted);margin-bottom:6px">📋 점수 산정 근거</div>
+    <div style="font-size:12px;font-weight:700;margin-bottom:10px">📋 지표별 분석</div>
     <div id="timingReasons"></div>
+  </div>
+
+  <!-- 매수 전환 시나리오 -->
+  <div class="card" style="margin-bottom:12px">
+    <div style="font-size:12px;font-weight:700;margin-bottom:10px">🎯 언제 사는 게 좋을까요?</div>
+    <div id="timingScenario"></div>
   </div>
 
   <!-- 지표 그리드 -->
@@ -553,38 +571,44 @@ body{background:#07090f;}
     <div class="card" style="padding:12px">
       <div style="font-size:10px;color:var(--muted);margin-bottom:4px">🏦 기준금리</div>
       <div id="tmRate" style="font-size:20px;font-weight:700;color:var(--gold)">—</div>
-      <div id="tmRateTrend" style="font-size:10px;color:var(--muted);margin-top:2px"></div>
+      <div id="tmRateTrend" style="font-size:10px;margin-top:2px"></div>
     </div>
     <div class="card" style="padding:12px">
       <div style="font-size:10px;color:var(--muted);margin-bottom:4px">📈 소비자물가(YoY)</div>
       <div id="tmCpi" style="font-size:20px;font-weight:700">—</div>
-      <div id="tmCpiTrend" style="font-size:10px;color:var(--muted);margin-top:2px"></div>
+      <div id="tmCpiTrend" style="font-size:10px;margin-top:2px"></div>
     </div>
     <div class="card" style="padding:12px">
       <div style="font-size:10px;color:var(--muted);margin-bottom:4px">💵 원/달러 환율</div>
       <div id="tmUsd" style="font-size:20px;font-weight:700">—</div>
-      <div id="tmUsdTrend" style="font-size:10px;color:var(--muted);margin-top:2px"></div>
+      <div id="tmUsdTrend" style="font-size:10px;margin-top:2px"></div>
+    </div>
+    <div class="card" style="padding:12px">
+      <div style="font-size:10px;color:var(--muted);margin-bottom:4px">💰 M2 통화량(YoY)</div>
+      <div id="tmM2" style="font-size:20px;font-weight:700">—</div>
+      <div id="tmM2Trend" style="font-size:10px;margin-top:2px"></div>
     </div>
     <div class="card" style="padding:12px">
       <div style="font-size:10px;color:var(--muted);margin-bottom:4px">🏦 예금금리(1년)</div>
       <div id="tmDeposit" style="font-size:20px;font-weight:700">—</div>
-      <div id="tmDepositTrend" style="font-size:10px;color:var(--muted);margin-top:2px"></div>
+      <div id="tmDepositTrend" style="font-size:10px;margin-top:2px"></div>
+    </div>
+    <div class="card" style="padding:12px">
+      <div style="font-size:10px;color:var(--muted);margin-bottom:4px">🏠 주담대금리(변동)</div>
+      <div id="tmMortgage" style="font-size:20px;font-weight:700">—</div>
+      <div id="tmMortgageTrend" style="font-size:10px;margin-top:2px"></div>
     </div>
   </div>
 
-  <!-- 금리 추이 차트 -->
+  <!-- 차트들 -->
   <div class="card" style="margin-bottom:12px">
     <div style="font-size:11px;font-weight:600;color:var(--muted);margin-bottom:8px">📉 기준금리 추이 (2년)</div>
     <div style="position:relative;height:120px"><canvas id="tmRateChart"></canvas></div>
   </div>
-
-  <!-- 물가 추이 차트 -->
   <div class="card" style="margin-bottom:12px">
     <div style="font-size:11px;font-weight:600;color:var(--muted);margin-bottom:8px">📊 소비자물가 추이 (2년)</div>
     <div style="position:relative;height:120px"><canvas id="tmCpiChart"></canvas></div>
   </div>
-
-  <!-- 환율 차트 -->
   <div class="card" style="margin-bottom:12px">
     <div style="font-size:11px;font-weight:600;color:var(--muted);margin-bottom:8px">💵 원/달러 환율 추이 (2년)</div>
     <div style="position:relative;height:120px"><canvas id="tmUsdChart"></canvas></div>
@@ -592,14 +616,33 @@ body{background:#07090f;}
 
   <!-- 투자자산 비교 -->
   <div class="card" style="margin-bottom:12px">
-    <div style="font-size:11px;font-weight:600;color:var(--muted);margin-bottom:10px">💹 투자자산 현황</div>
+    <div style="font-size:12px;font-weight:700;margin-bottom:10px">💹 부동산 vs 다른 투자</div>
     <div id="tmAssets" style="display:flex;flex-direction:column;gap:8px"></div>
   </div>
 
-  <!-- 주식 시장 -->
-  <div class="card">
-    <div style="font-size:11px;font-weight:600;color:var(--muted);margin-bottom:10px">📈 주요 지수 · 자산</div>
+  <!-- 주요 지수 -->
+  <div class="card" style="margin-bottom:12px">
+    <div style="font-size:12px;font-weight:700;margin-bottom:10px">📈 주요 지수 · 자산 (전일 기준)</div>
     <div id="tmStocks" style="display:flex;flex-direction:column;gap:6px">
+      <div style="color:var(--muted);font-size:12px;text-align:center;padding:12px">로딩 중...</div>
+    </div>
+  </div>
+
+  <!-- 공급물량 -->
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+      <div style="font-size:12px;font-weight:700">🏗️ 지역별 분양 공급물량</div>
+      <select id="supplyRegion" style="background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:4px 8px;font-size:11px">
+        <option value="서울">서울</option>
+        <option value="경기">경기</option>
+        <option value="인천">인천</option>
+        <option value="부산">부산</option>
+        <option value="대구">대구</option>
+        <option value="대전">대전</option>
+        <option value="광주">광주</option>
+      </select>
+    </div>
+    <div id="tmSupply" style="display:flex;flex-direction:column;gap:6px">
       <div style="color:var(--muted);font-size:12px;text-align:center;padding:12px">로딩 중...</div>
     </div>
   </div>
@@ -1512,7 +1555,7 @@ async function goToRec() {
 /* ── 매수 타이밍 ── */
 let timingCache = null
 async function renderTiming() {
-  if(timingCache) { applyTimingData(timingCache); loadStocks(); return }
+  if(timingCache) { applyTimingData(timingCache); loadStocks(); loadSupply(); return }
   try {
     const res  = await fetch(`${PROXY}?type=macro`, {headers:HDR})
     const data = await res.json()
@@ -1520,146 +1563,180 @@ async function renderTiming() {
     timingCache = data.data
     applyTimingData(data.data)
     loadStocks()
+    loadSupply()
+    $('supplyRegion')?.addEventListener('change', (e:any) => loadSupply(e.target.value))
   } catch(e) { console.warn('타이밍 오류:', e) }
 }
 
 function applyTimingData(d) {
   const last = arr => arr?.length ? arr[arr.length-1] : null
   const prev = arr => arr?.length > 1 ? arr[arr.length-2] : null
-  const trend = (cur, prv, unit='') => {
-    if(!cur || !prv) return ''
-    const diff = (cur.value - prv.value).toFixed(2)
-    const up = cur.value > prv.value
-    return `<span style="color:${up?'var(--up)':'var(--down)'}">${up?'▲':'▼'} ${Math.abs(diff)}${unit}</span> 전월비`
+  const trend = (cur, prv, unit='', label='전월비', showPct=false) => {
+    if(!cur || !prv) return '<span style="color:var(--muted)">데이터 없음</span>'
+    const diff = cur.value - prv.value
+    const pct  = prv.value ? (diff/prv.value*100) : 0
+    const up   = diff > 0
+    const diffStr = Math.abs(diff) < 0.01 ? Math.abs(diff).toFixed(3) : Math.abs(diff).toFixed(2)
+    const pctStr  = Math.abs(pct).toFixed(2)
+    return `<span style="color:${up?'var(--up)':'var(--down)'}">${up?'▲':'▼'} ${diffStr}${unit}${showPct?' ('+pctStr+'%)':''}</span> <span style="color:var(--muted)">${label}</span>`
   }
 
-  // 기준금리
   const rate = last(d.rate)
-  if($('tmRate')) $('tmRate').textContent = rate ? rate.value.toFixed(2)+'%' : '—'
-  if($('tmRateTrend')) $('tmRateTrend').innerHTML = trend(rate, prev(d.rate), '%')
+  const cpi  = last(d.cpi)
+  const usd  = last(d.usdKrw)
+  const dep  = last(d.depositRate)
+  const mort = last(d.mortgageRate)
+  const m2   = last(d.m2)
 
-  // CPI
-  const cpi = last(d.cpi)
-  if($('tmCpi')) {
-    $('tmCpi').textContent = cpi ? cpi.value.toFixed(1)+'%' : '—'
-    $('tmCpi').style.color = cpi?.value > 3 ? 'var(--down)' : cpi?.value > 2 ? 'var(--gold)' : 'var(--up)'
-  }
-  if($('tmCpiTrend')) $('tmCpiTrend').innerHTML = trend(cpi, prev(d.cpi), '%')
+  // 지표 표시
+  if($('tmRate'))    { $('tmRate').textContent = rate ? rate.value.toFixed(2)+'%' : '—'; $('tmRate').style.color = 'var(--gold)' }
+  if($('tmRateTrend'))  $('tmRateTrend').innerHTML  = trend(rate, prev(d.rate), '%p', '전월비')
+  if($('tmCpi'))     { $('tmCpi').textContent = cpi ? cpi.value.toFixed(1)+'%' : '—'; $('tmCpi').style.color = cpi?.value > 3?'var(--down)':cpi?.value>2?'var(--gold)':'var(--up)' }
+  if($('tmCpiTrend'))   $('tmCpiTrend').innerHTML   = trend(cpi, prev(d.cpi), '%p', '전월비')
+  if($('tmUsd'))     { if(usd?.value){$('tmUsd').textContent=Math.round(usd.value).toLocaleString()+'원'; $('tmUsd').style.color=usd.value>1400?'var(--down)':usd.value>1300?'var(--gold)':'var(--up)'} else $('tmUsd').textContent='—' }
+  if($('tmUsdTrend'))   $('tmUsdTrend').innerHTML   = trend(usd, prev(d.usdKrw), '원', '전월비', true)
+  if($('tmDeposit')) { $('tmDeposit').textContent = dep?.value ? dep.value.toFixed(2)+'%' : '—' }
+  if($('tmDepositTrend')) $('tmDepositTrend').innerHTML = trend(dep, prev(d.depositRate), '%p', '전월비')
+  if($('tmMortgage')){ $('tmMortgage').textContent = mort?.value ? mort.value.toFixed(2)+'%' : '—'; $('tmMortgage').style.color='var(--down)' }
+  if($('tmMortgageTrend')) $('tmMortgageTrend').innerHTML = trend(mort, prev(d.mortgageRate), '%p', '전월비')
+  if($('tmM2'))      { $('tmM2').textContent = m2?.value ? m2.value.toFixed(1)+'%' : '—'; $('tmM2').style.color = m2?.value>10?'var(--up)':m2?.value>5?'var(--gold)':'var(--muted)' }
+  if($('tmM2Trend'))    $('tmM2Trend').innerHTML    = trend(m2, prev(d.m2), '%p', '전월비')
 
-  // 환율
-  const usd = last(d.usdKrw)
-  if($('tmUsd')) {
-    if(usd?.value) {
-      $('tmUsd').textContent = Math.round(usd.value).toLocaleString()+'원'
-      $('tmUsd').style.color = usd.value > 1400 ? 'var(--down)' : usd.value > 1300 ? 'var(--gold)' : 'var(--up)'
-    } else {
-      $('tmUsd').textContent = '—'
-    }
-  }
-  if($('tmUsdTrend')) $('tmUsdTrend').innerHTML = usd ? trend(usd, prev(d.usdKrw), '원') : '데이터 없음'
-
-  // 예금금리
-  const dep = last(d.depositRate)
-  if($('tmDeposit')) {
-    if(dep?.value) {
-      $('tmDeposit').textContent = dep.value.toFixed(2)+'%'
-    } else {
-      $('tmDeposit').textContent = '—'
-    }
-  }
-  if($('tmDepositTrend')) $('tmDepositTrend').innerHTML = dep ? trend(dep, prev(d.depositRate), '%') : '데이터 없음'
-
-  // 종합 판단 점수
+  // ── 종합 점수 계산 ──
   let score = 50
-  const reasons = []
+  const scoreReasons = []
 
-  // 금리: 낮을수록 매수 유리
   if(rate) {
-    if(rate.value<=2) { score+=20; reasons.push({icon:'🏦', text:`기준금리 ${rate.value}% — 저금리 구간, 매수 유리`, good:true}) }
-    else if(rate.value<=3) { score+=10; reasons.push({icon:'🏦', text:`기준금리 ${rate.value}% — 중저금리, 대출 부담 적정`, good:true}) }
-    else if(rate.value<=4) { score+=0; reasons.push({icon:'🏦', text:`기준금리 ${rate.value}% — 중금리, 신중한 접근 필요`, good:null}) }
-    else { score-=15; reasons.push({icon:'🏦', text:`기준금리 ${rate.value}% — 고금리, 대출 부담 큼`, good:false}) }
+    if(rate.value<=2)      { score+=20; scoreReasons.push({icon:'🏦', title:'기준금리 매우 낮음', detail:`현재 기준금리 ${rate.value}%는 역사적 저금리 수준이에요. 대출 이자 부담이 줄어 집 사기 유리한 환경이에요.`, good:true, pts:+20}) }
+    else if(rate.value<=3) { score+=10; scoreReasons.push({icon:'🏦', title:'기준금리 적정 수준', detail:`기준금리 ${rate.value}%는 부동산 매수에 비교적 유리한 수준이에요. 대출 이자 부담이 크지 않아요.`, good:true, pts:+10}) }
+    else if(rate.value<=4) { score+=0;  scoreReasons.push({icon:'🏦', title:'기준금리 다소 높음', detail:`기준금리 ${rate.value}%는 대출 이자 부담이 적지 않아요. 월 상환액을 꼼꼼히 계산해보세요.`, good:null, pts:0}) }
+    else                   { score-=15; scoreReasons.push({icon:'🏦', title:'기준금리 고금리 구간', detail:`기준금리 ${rate.value}%는 대출 이자 부담이 커요. 같은 금액을 빌려도 매월 갚아야 할 돈이 많아져요.`, good:false, pts:-15}) }
   }
 
-  // CPI: 안정적일수록 유리
   if(cpi) {
-    if(cpi.value<=2) { score+=15; reasons.push({icon:'📊', text:`물가상승률 ${cpi.value.toFixed(1)}% — 안정적, 실질자산 가치 보전`, good:true}) }
-    else if(cpi.value<=3) { score+=5; reasons.push({icon:'📊', text:`물가상승률 ${cpi.value.toFixed(1)}% — 보통 수준`, good:null}) }
-    else { score-=10; reasons.push({icon:'📊', text:`물가상승률 ${cpi.value.toFixed(1)}% — 고물가, 구매력 약화`, good:false}) }
+    if(cpi.value<=2)       { score+=15; scoreReasons.push({icon:'📊', title:'물가 안정', detail:`물가 상승률 ${cpi.value.toFixed(1)}%는 매우 안정적이에요. 실질 구매력이 유지되고 한국은행이 금리를 내릴 여지가 생겨요.`, good:true, pts:+15}) }
+    else if(cpi.value<=3)  { score+=5;  scoreReasons.push({icon:'📊', title:'물가 보통 수준', detail:`물가 상승률 ${cpi.value.toFixed(1)}%는 한국은행 목표(2%)를 살짝 넘는 수준이에요. 금리 인하 가능성이 제한될 수 있어요.`, good:null, pts:+5}) }
+    else                   { score-=10; scoreReasons.push({icon:'📊', title:'물가 높음 — 금리 인하 어려워', detail:`물가 상승률 ${cpi.value.toFixed(1)}%는 높은 편이에요. 한국은행이 물가를 잡기 위해 금리를 쉽게 내리지 못해요.`, good:false, pts:-10}) }
   }
 
-  // 환율: 낮을수록 유리
   if(usd) {
-    if(usd.value<=1200) { score+=10; reasons.push({icon:'💵', text:`환율 ${Math.round(usd.value)}원 — 원화 강세, 외국인 투자 유입 유리`, good:true}) }
-    else if(usd.value<=1300) { score+=5; reasons.push({icon:'💵', text:`환율 ${Math.round(usd.value)}원 — 보통 수준`, good:null}) }
-    else if(usd.value<=1400) { score-=5; reasons.push({icon:'💵', text:`환율 ${Math.round(usd.value)}원 — 원화 약세`, good:false}) }
-    else { score-=15; reasons.push({icon:'💵', text:`환율 ${Math.round(usd.value)}원 — 원화 급약세, 경기 불안`, good:false}) }
+    if(usd.value<=1200)    { score+=10; scoreReasons.push({icon:'💵', title:'원화 강세 — 외국인 투자 유리', detail:`달러당 ${Math.round(usd.value)}원으로 원화가 강한 상태예요. 외국인 부동산 투자가 활발해져 가격 상승 요인이 될 수 있어요.`, good:true, pts:+10}) }
+    else if(usd.value<=1300){ score+=5; scoreReasons.push({icon:'💵', title:'환율 안정적', detail:`달러당 ${Math.round(usd.value)}원으로 환율이 안정적이에요. 경제 불확실성이 크지 않은 신호예요.`, good:null, pts:+5}) }
+    else if(usd.value<=1400){ score-=5; scoreReasons.push({icon:'💵', title:'원화 약세 — 수입물가 상승 우려', detail:`달러당 ${Math.round(usd.value)}원으로 원화가 약해졌어요. 수입 물가가 오르면 생활비 부담이 커지고 집 살 여력이 줄어요.`, good:false, pts:-5}) }
+    else                   { score-=15; scoreReasons.push({icon:'💵', title:'원화 급약세 — 경기 불안 신호', detail:`달러당 ${Math.round(usd.value)}원으로 원화가 많이 약해졌어요. 경제 불안 신호일 수 있어 부동산 투자에 신중해야 해요.`, good:false, pts:-15}) }
   }
 
-  // 예금금리 vs 기준금리
+  if(m2) {
+    if(m2.value>=8)        { score+=10; scoreReasons.push({icon:'💰', title:'통화량 증가 — 유동성 풍부', detail:`시중에 돈(M2)이 전년 대비 ${m2.value.toFixed(1)}% 늘었어요. 시중에 돈이 많이 풀리면 부동산 가격이 오르는 경향이 있어요.`, good:true, pts:+10}) }
+    else if(m2.value>=4)   { score+=5;  scoreReasons.push({icon:'💰', title:'통화량 보통', detail:`M2 증가율 ${m2.value.toFixed(1)}%는 적정 수준이에요. 시중 유동성이 크게 넘치거나 부족하지 않아요.`, good:null, pts:+5}) }
+    else                   { score-=5;  scoreReasons.push({icon:'💰', title:'통화량 증가 둔화', detail:`M2 증가율 ${m2.value.toFixed(1)}%는 낮은 편이에요. 시중에 돈이 줄어드는 신호로 부동산 수요가 약해질 수 있어요.`, good:false, pts:-5}) }
+  }
+
   if(dep && rate) {
     const gap = dep.value - rate.value
-    if(gap>0.5) { score+=10; reasons.push({icon:'🏦', text:`예금금리(${dep.value.toFixed(2)}%)가 기준금리보다 ${gap.toFixed(2)}%p 높음 — 예금 매력도 높아 부동산 관망 심리`, good:false}) }
-    else if(gap>=0) { score+=5; reasons.push({icon:'🏦', text:`예금금리 ${dep.value.toFixed(2)}% — 기준금리와 비슷`, good:null}) }
-    else { score+=0; reasons.push({icon:'🏦', text:`예금금리(${dep.value.toFixed(2)}%)가 기준금리보다 낮음 — 실물자산 선호 증가`, good:true}) }
+    if(gap>1)              { score-=5;  scoreReasons.push({icon:'🏦', title:'예금 매력도 높음 — 관망 심리 강해', detail:`예금금리(${dep.value.toFixed(2)}%)가 기준금리보다 ${gap.toFixed(2)}%p 높아요. 많은 사람들이 은행 예금을 선택할 수 있어 부동산 수요가 줄 수 있어요.`, good:false, pts:-5}) }
+    else                   { score+=5;  scoreReasons.push({icon:'🏦', title:'예금 매력도 낮음 — 실물자산 선호', detail:`예금 대비 부동산의 상대적 매력이 높아요. 낮은 예금금리는 사람들이 부동산 같은 실물자산을 찾게 만들어요.`, good:true, pts:+5}) }
   }
 
   score = Math.min(Math.max(score, 10), 95)
-
-  // 점수 이유 표시
-  const reasonEl = $('timingReasons')
-  if(reasonEl) {
-    reasonEl.innerHTML = reasons.map(r => `
-      <div style="display:flex;gap:8px;padding:7px 0;border-bottom:1px solid rgba(255,255,255,.04);font-size:11px">
-        <span style="flex-shrink:0">${r.icon}</span>
-        <span style="color:${r.good===true?'var(--up)':r.good===false?'rgba(248,113,113,.8)':'var(--muted)'}">${r.text}</span>
-        <span style="margin-left:auto;flex-shrink:0;font-weight:700;color:${r.good===true?'var(--up)':r.good===false?'var(--down)':'var(--muted)'}">${r.good===true?'▲':r.good===false?'▼':'─'}</span>
-      </div>`).join('')
-  }
-  const label = score>=75?'✦ 매수 적기':score>=60?'◈ 조건부 적기':score>=45?'△ 관망':' 매수 비추'
+  const label = score>=75?'✦ 지금이 매수 적기예요':score>=60?'◈ 조건부로 매수 고려해볼 만해요':score>=45?'△ 아직은 조금 더 지켜보세요':'✕ 지금은 매수를 서두르지 마세요'
   const color = score>=75?'var(--up)':score>=60?'var(--gold)':score>=45?'var(--muted)':'var(--down)'
-  const desc  = score>=75?'금리·물가·환율 등 거시경제 지표가 부동산 매수에 우호적입니다.'
-    :score>=60?'일부 지표가 우호적이나 추가 확인이 필요합니다.'
-    :score>=45?'현재 거시경제 환경은 관망이 유리할 수 있습니다.'
-    :'거시경제 지표가 부동산 매수에 비우호적입니다. 신중한 접근을 권장합니다.'
 
   if($('timingScore')) { $('timingScore').textContent = score; $('timingScore').style.color = color }
   if($('timingLabel')) { $('timingLabel').textContent = label; $('timingLabel').style.color = color }
-  if($('timingDesc'))    $('timingDesc').textContent = desc
+  if($('timingDesc'))  $('timingDesc').textContent = score>=75?'거시경제 지표들이 부동산 매수에 우호적인 환경을 만들고 있어요.'
+    :score>=60?'일부 지표가 우호적이지만 확인이 더 필요한 시점이에요.'
+    :score>=45?'현재 환경은 매수보다 관망이 유리할 수 있어요. 지표 개선을 기다려보세요.'
+    :'여러 지표가 부동산 매수에 불리한 환경을 가리키고 있어요. 신중한 접근이 필요해요.'
 
-  // 금리 차트
-  drawTimingChart('tmRateChart', d.rate, '기준금리', '#e8c87a', '%')
-  drawTimingChart('tmCpiChart',  d.cpi,  'CPI',      '#4f9cf9', '%')
+  // 쉬운 설명
+  const explainEl = $('timingExplain')
+  if(explainEl) {
+    const rateOk  = rate && rate.value <= 3
+    const cpiOk   = cpi  && cpi.value  <= 2.5
+    const usdOk   = usd  && usd.value  <= 1350
+    const mortVal = mort?.value || (rate ? rate.value+1.5 : 5)
+    explainEl.innerHTML = `
+      <p style="margin:0 0 10px">지금 3억원을 대출받으면 <strong style="color:var(--gold)">월 약 ${Math.round(3e8*mortVal/100/12/1e4)}만원</strong>의 이자를 내야 해요 (금리 ${mortVal.toFixed(2)}% 기준).</p>
+      <p style="margin:0 0 10px">${rateOk ? '✅ 기준금리가 낮아 대출 이자 부담이 비교적 적어요.' : '⚠️ 기준금리가 높아 대출 이자 부담이 커요.'}</p>
+      <p style="margin:0 0 10px">${cpiOk  ? '✅ 물가가 안정돼 있어 한국은행이 금리를 더 내릴 여지가 있어요.' : '⚠️ 물가가 아직 높아 금리가 빨리 내려가기 어려울 수 있어요.'}</p>
+      <p style="margin:0">${usdOk  ? '✅ 환율이 안정적이에요.' : '⚠️ 환율이 높아 경제 불확실성이 있어요. 집값에도 영향을 줄 수 있어요.'}</p>`
+  }
+
+  // 점수 근거
+  const reasonEl = $('timingReasons')
+  if(reasonEl) {
+    reasonEl.innerHTML = scoreReasons.map(r => `
+      <div style="padding:10px 0;border-bottom:1px solid rgba(255,255,255,.05)">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+          <div style="font-size:12px;font-weight:600">${r.icon} ${r.title}</div>
+          <div style="font-size:11px;font-weight:700;color:${r.good===true?'var(--up)':r.good===false?'var(--down)':'var(--muted)'}">${r.pts>0?'+':r.pts===0?'':r.pts}점</div>
+        </div>
+        <div style="font-size:11px;color:var(--muted);line-height:1.6">${r.detail}</div>
+      </div>`).join('')
+  }
+
+  // 매수 전환 시나리오
+  const scenarioEl = $('timingScenario')
+  if(scenarioEl && rate) {
+    const targetScore1 = Math.min(score+20, 95) // 낙관
+    const targetScore2 = Math.min(score+10, 95) // 기준
+
+    const conditions1 = [] // 낙관 시나리오
+    const conditions2 = [] // 기준 시나리오
+
+    if(rate.value > 2.5) conditions1.push(`기준금리 → 2.0%로 인하`)
+    if(rate.value > 3.0) conditions2.push(`기준금리 → 2.5%로 인하`)
+    if(cpi?.value > 2)   conditions1.push(`물가 → 2.0% 이하 안정`)
+    if(cpi?.value > 2.5) conditions2.push(`물가 → 2.5% 이하 안정`)
+    if(usd?.value > 1300){ conditions1.push(`환율 → 1,300원 이하 안정`); conditions2.push(`환율 → 1,350원 이하 안정`) }
+
+    scenarioEl.innerHTML = `
+      <div style="margin-bottom:12px;padding:12px;background:rgba(74,222,128,.06);border:1px solid rgba(74,222,128,.2);border-radius:10px">
+        <div style="font-size:11px;font-weight:700;color:var(--up);margin-bottom:6px">🌟 낙관 시나리오 — 예상 점수 ${targetScore1}점</div>
+        <div style="font-size:11px;color:var(--muted);line-height:1.7">
+          ${conditions1.length ? conditions1.map(c=>`• ${c}`).join('<br>') : '• 현재 지표 유지만으로도 충분히 긍정적이에요'}
+        </div>
+        <div style="font-size:11px;color:var(--up);margin-top:6px">→ 이 조건 충족 시 매수 강력 추천 구간 진입</div>
+      </div>
+      <div style="padding:12px;background:rgba(232,200,122,.06);border:1px solid rgba(232,200,122,.2);border-radius:10px">
+        <div style="font-size:11px;font-weight:700;color:var(--gold);margin-bottom:6px">📊 기준 시나리오 — 예상 점수 ${targetScore2}점</div>
+        <div style="font-size:11px;color:var(--muted);line-height:1.7">
+          ${conditions2.length ? conditions2.map(c=>`• ${c}`).join('<br>') : '• 현재 추세가 유지되면 점수가 소폭 개선될 수 있어요'}
+        </div>
+        <div style="font-size:11px;color:var(--gold);margin-top:6px">→ 실수요 목적이라면 조건부 매수 고려 가능</div>
+      </div>`
+  }
 
   // 투자자산 비교
   const assets = $('tmAssets')
   if(assets && rate) {
-    const mort = last(d.mortgageRate)
+    const mortVal = mort?.value || rate.value+1.5
     const items = [
-      { label:'기준금리',         val: rate.value.toFixed(2)+'%', color:'var(--gold)', pct: rate.value },
-      { label:'정기예금 (1년)',   val: dep?.value ? dep.value.toFixed(2)+'%' : '—', color:'var(--blue)', pct: dep?.value||0 },
-      { label:'주택담보대출(변동)', val: mort?.value ? mort.value.toFixed(2)+'%' : (rate.value+1.5).toFixed(2)+'% (추정)', color:'var(--down)', pct: mort?.value||rate.value+1.5 },
+      { label:'기준금리',           val: rate.value.toFixed(2)+'%', color:'var(--gold)',  pct: rate.value,  desc:'한국은행 기준' },
+      { label:'정기예금 (1년)',     val: dep?.value ? dep.value.toFixed(2)+'%':'—',      color:'var(--blue)', pct: dep?.value||0, desc:'은행 수신금리' },
+      { label:'주담대 변동금리',    val: mortVal.toFixed(2)+'%',                          color:'var(--down)', pct: mortVal,       desc:'실제 대출 시 적용' },
     ]
     assets.innerHTML = `
-      <div style="font-size:10px;color:var(--muted);margin-bottom:6px">기준금리 대비 예금·대출 비교</div>
+      <div style="font-size:11px;color:var(--muted);margin-bottom:8px">💡 예금금리보다 대출금리가 높을수록 집값 상승 압력이 커져요</div>
       ${items.map(a => `
       <div style="display:flex;align-items:center;gap:10px">
-        <div style="font-size:11px;color:var(--muted);width:100px;flex-shrink:0">${a.label}</div>
+        <div style="font-size:11px;color:var(--muted);width:100px;flex-shrink:0">${a.label}<br><span style="font-size:9px">${a.desc}</span></div>
         <div style="flex:1;height:8px;background:rgba(255,255,255,.08);border-radius:4px;overflow:hidden">
           <div style="height:100%;width:${Math.min(a.pct*12,100)}%;background:${a.color};border-radius:4px;transition:width .6s"></div>
         </div>
-        <div style="font-size:12px;font-weight:700;color:${a.color};width:40px;text-align:right">${a.val}</div>
+        <div style="font-size:13px;font-weight:700;color:${a.color};width:44px;text-align:right">${a.val}</div>
       </div>`).join('')}
-
       <div style="margin-top:10px;padding:10px;background:var(--bg3);border-radius:10px;font-size:11px;line-height:1.7;color:var(--muted)">
-        💡 <strong style="color:var(--text)">금리 분석</strong><br>
-        ${rate.value <= 2.5 ? '저금리 구간 — 대출 부담 낮아 부동산 매수 유리'
-          : rate.value <= 3.5 ? '중립 금리 — 대출 부담 보통, 입지·가격 위주 판단 필요'
-          : '고금리 구간 — 대출 이자 부담 크므로 신중한 접근 권장'}
+        ${rate.value <= 2.5 ? '💡 저금리 환경이에요. 예금 이자보다 집값 상승으로 얻는 이익이 클 수 있어요.'
+          : rate.value <= 3.5 ? '💡 중립 금리예요. 입지와 가격이 좋은 단지 위주로 선별 매수를 고려해보세요.'
+          : '💡 고금리 환경이에요. 대출을 많이 받으면 이자 부담이 커요. 자기자본 비율을 높이는 게 유리해요.'}
       </div>`
   }
 
-  // 환율 차트 추가
+  // 차트
+  drawTimingChart('tmRateChart', d.rate, '기준금리', '#e8c87a', '%')
+  drawTimingChart('tmCpiChart',  d.cpi,  'CPI',      '#4f9cf9', '%')
   if(d.usdKrw?.length) drawTimingChart('tmUsdChart', d.usdKrw, '원/달러', '#4ade80', '원')
 }
 
@@ -1667,7 +1744,7 @@ function drawTimingChart(canvasId, data, label, color, unit='') {
   const ctx = $(canvasId)
   if(!ctx || !data?.length) return
   if(ctx._chart) { ctx._chart.destroy(); ctx._chart = null }
-  const labels = data.map(d => d.time.slice(2,7))
+  const labels = data.map(d => String(d.time).slice(2,7))
   const values = data.map(d => d.value)
   ctx._chart = new Chart(ctx, {
     type: 'line',
@@ -1687,44 +1764,64 @@ function drawTimingChart(canvasId, data, label, color, unit='') {
   })
 }
 
-async function loadStocks() {
-  const el = $('tmStocks')
+
+async function loadSupply(region='서울') {
+  const el = $('tmSupply')
   if(!el) return
+  el.innerHTML = '<div style="color:var(--muted);font-size:12px;text-align:center;padding:12px">로딩 중...</div>'
   try {
-    const res  = await fetch(`${PROXY}?type=stocks`, {headers:HDR})
+    const res  = await fetch(`${PROXY}?type=supply&region=${encodeURIComponent(region)}`, {headers:HDR})
     const data = await res.json()
-    if(!data.ok) return
+    if(!data.ok) { el.innerHTML = '<div style="color:var(--muted);font-size:11px;text-align:center;padding:8px">데이터 없음</div>'; return }
 
-    const items = [
-      { key:'kospi',  icon:'🇰🇷', label:'코스피'  },
-      { key:'kosdaq', icon:'📊', label:'코스닥'  },
-      { key:'sp500',  icon:'🇺🇸', label:'S&P500'  },
-      { key:'gold',   icon:'🥇', label:'금 (USD)' },
-      { key:'usd',    icon:'💵', label:'달러/원'  },
-    ]
+    const { byYear, recent, total } = data.data
 
-    el.innerHTML = items.map(item => {
-      const d = data.data[item.key]
-      if(!d?.cur) return ''
-      const up = d.chg >= 0
-      const val = item.key === 'usd' ? Math.round(d.cur).toLocaleString()+'원'
-                : item.key === 'gold' ? '$'+Math.round(d.cur).toLocaleString()
-                : d.cur.toLocaleString()
-      return `
-        <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid rgba(255,255,255,.04)">
-          <span style="font-size:16px;flex-shrink:0">${item.icon}</span>
-          <div style="flex:1">
-            <div style="font-size:12px;font-weight:600">${item.label}</div>
-          </div>
-          <div style="text-align:right">
-            <div style="font-size:14px;font-weight:700">${val}</div>
-            <div style="font-size:10px;color:${up?'var(--up)':'var(--down)'}">${up?'▲':'▼'} ${Math.abs(d.chg)}%</div>
-          </div>
-        </div>`
-    }).join('')
+    // 연도별 막대 차트
+    const maxVal = Math.max(...Object.values(byYear) as number[], 1)
+    const years  = Object.keys(byYear).sort()
+    const nowYr  = String(new Date().getFullYear())
+
+    el.innerHTML = `
+      <div style="font-size:11px;color:var(--muted);margin-bottom:10px">최근 청약 공고 기준 총 <strong style="color:var(--text)">${total.toLocaleString()}건</strong></div>
+
+      <div style="font-size:11px;font-weight:600;margin-bottom:8px;color:var(--muted)">📅 연도별 입주 예정 세대수</div>
+      <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:14px">
+        ${years.map(yr => `
+          <div style="display:flex;align-items:center;gap:8px">
+            <div style="font-size:11px;color:${yr>=nowYr?'var(--gold)':'var(--muted)'};width:36px;flex-shrink:0;font-weight:${yr>=nowYr?700:400}">${yr}</div>
+            <div style="flex:1;height:10px;background:rgba(255,255,255,.06);border-radius:4px;overflow:hidden">
+              <div style="height:100%;width:${Math.round((byYear[yr]/maxVal)*100)}%;background:${yr>=nowYr?'var(--gold)':'rgba(255,255,255,.2)'};border-radius:4px;transition:width .6s"></div>
+            </div>
+            <div style="font-size:11px;color:${yr>=nowYr?'var(--gold)':'var(--muted)'};width:60px;text-align:right">${byYear[yr].toLocaleString()}세대</div>
+          </div>`).join('')}
+      </div>
+
+      <div style="font-size:11px;font-weight:600;margin-bottom:8px;color:var(--muted)">🏢 최근 분양 단지</div>
+      <div style="display:flex;flex-direction:column;gap:6px">
+        ${recent.map((r:any) => `
+          <div style="padding:8px;background:var(--bg3);border-radius:8px;cursor:pointer" onclick="window.open('${r.url}','_blank')">
+            <div style="display:flex;justify-content:space-between;align-items:start;gap:8px">
+              <div>
+                <div style="font-size:12px;font-weight:600">${r.name}</div>
+                <div style="font-size:10px;color:var(--muted);margin-top:2px">${r.addr?.replace('서울특별시 ','').replace('경기도 ','') || ''}</div>
+              </div>
+              <div style="text-align:right;flex-shrink:0">
+                <div style="font-size:12px;font-weight:700;color:var(--gold)">${parseInt(r.units).toLocaleString()}세대</div>
+                <div style="font-size:10px;color:var(--muted)">입주 ${String(r.moveIn).slice(0,4)}.${String(r.moveIn).slice(4,6)}</div>
+              </div>
+            </div>
+          </div>`).join('')}
+      </div>
+
+      <div style="margin-top:12px;padding:10px;background:var(--bg3);border-radius:10px;font-size:11px;line-height:1.7;color:var(--muted)">
+        💡 <strong style="color:var(--text)">공급물량 해석</strong><br>
+        ${(byYear[nowYr]||0) > 5000
+          ? `올해 ${(byYear[nowYr]||0).toLocaleString()}세대 분양 예정 — 공급 많은 편이에요. 가격 상승 압력이 제한될 수 있어요.`
+          : `올해 ${(byYear[nowYr]||0).toLocaleString()}세대 분양 예정 — 공급 적은 편이에요. 수요 대비 공급 부족 시 가격 상승 요인이 돼요.`}
+      </div>`
+
   } catch(e) {
-    const el = $('tmStocks')
-    if(el) el.innerHTML = '<div style="color:var(--muted);font-size:11px;text-align:center;padding:12px">데이터 로드 실패</div>'
+    el.innerHTML = '<div style="color:var(--muted);font-size:11px;text-align:center;padding:8px">데이터 로드 실패</div>'
   }
 }
 
