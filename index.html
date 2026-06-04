@@ -1776,7 +1776,7 @@ async function loadSupply(region='서울') {
     const { byYear, recent, total } = data.data
 
     // 연도별 막대 차트
-    const maxVal = Math.max(...Object.values(byYear) as number[], 1)
+    const maxVal = Math.max(...Object.values(byYear), 1)
     const years  = Object.keys(byYear).sort()
     const nowYr  = String(new Date().getFullYear())
 
@@ -1797,7 +1797,7 @@ async function loadSupply(region='서울') {
 
       <div style="font-size:11px;font-weight:600;margin-bottom:8px;color:var(--muted)">🏢 최근 분양 단지</div>
       <div style="display:flex;flex-direction:column;gap:6px">
-        ${recent.map((r:any) => `
+        ${recent.map((r) => `
           <div style="padding:8px;background:var(--bg3);border-radius:8px;cursor:pointer" onclick="window.open('${r.url}','_blank')">
             <div style="display:flex;justify-content:space-between;align-items:start;gap:8px">
               <div>
@@ -2141,7 +2141,7 @@ window.addEventListener('DOMContentLoaded', () => {
   $('nb-mkt') ?.addEventListener('click', ()=>navTo('mkt'))
   $('nb-timing')?.addEventListener('click', ()=>navTo('timing'))
   $('nb-fav') ?.addEventListener('click', ()=>navTo('fav'))
-  $('supplyRegion')?.addEventListener('change', (e) => loadSupply((e.target as HTMLSelectElement).value))
+  $('supplyRegion')?.addEventListener('change', (e) => loadSupply(e.target.value))
   $('ctaBtn') ?.addEventListener('click', goToRec)
   $('msEdit') ?.addEventListener('click', ()=>navTo('home'))
   $('viewList')?.addEventListener('click', ()=>setView('list'))
