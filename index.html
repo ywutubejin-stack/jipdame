@@ -1650,6 +1650,7 @@ function applyTimingData(d) {
   }
 
   // 소비자물가 (20점 만점)
+  if(!cpi) { scoreReasons.push({icon:'📊', title:'소비자물가 — 데이터 없음', detail:'소비자물가 데이터를 가져오지 못했어요.', good:null, pts:0, max:20}) }
   if(cpi) {
     const v = cpi.value
     const pts = v<=1.5 ? 20 : v<=2 ? 18 : v<=2.5 ? 13 : v<=3 ? 7 : v<=4 ? 3 : 0
@@ -1666,6 +1667,7 @@ function applyTimingData(d) {
   }
 
   // 환율 (15점 만점)
+  if(!usd) { scoreReasons.push({icon:'💵', title:'환율 — 데이터 없음', detail:'환율 데이터를 가져오지 못했어요.', good:null, pts:0, max:15}) }
   if(usd) {
     const v = usd.value
     const pts = v<=1150 ? 15 : v<=1250 ? 12 : v<=1350 ? 8 : v<=1450 ? 3 : 0
@@ -1679,6 +1681,7 @@ function applyTimingData(d) {
   }
 
   // M2 통화량 (15점 만점)
+  if(!m2) { scoreReasons.push({icon:'💰', title:'M2 통화량 — 데이터 없음', detail:'M2 통화량 데이터를 가져오지 못했어요.', good:null, pts:0, max:15}) }
   if(m2) {
     const v = m2.value
     const pts = v>=7 ? 15 : v>=5 ? 12 : v>=3 ? 8 : v>=1 ? 4 : 0
@@ -1692,6 +1695,7 @@ function applyTimingData(d) {
   }
 
   // 예금금리 vs 기준금리 (15점 만점)
+  if(!(dep && rate)) { scoreReasons.push({icon:'🏦', title:'예금금리 비교 — 데이터 없음', detail:'예금금리 데이터를 가져오지 못했어요.', good:null, pts:0, max:15}) }
   if(dep && rate) {
     const gap = dep.value - rate.value
     const pts = gap < 0 ? 15 : gap < 0.5 ? 12 : gap < 1 ? 8 : gap < 1.5 ? 3 : 0
@@ -1705,6 +1709,7 @@ function applyTimingData(d) {
   }
 
   // 주담대금리 (10점 만점)
+  if(!mort) { scoreReasons.push({icon:'🏠', title:'주담대금리 — 데이터 없음', detail:'주택담보대출 금리 데이터를 가져오지 못했어요.', good:null, pts:0, max:10}) }
   if(mort) {
     const v = mort.value
     const pts = v<=3 ? 10 : v<=3.5 ? 8 : v<=4 ? 5 : v<=5 ? 2 : 0
