@@ -529,7 +529,62 @@ body{background:#07090f;}
 </div>
 </div>
 
-<div class="page" id="page-fav">
+<div class="page" id="page-timing">
+<div class="mkt-page">
+  <div style="font-family:var(--serif);font-size:20px;font-weight:700;margin-bottom:3px">매수 타이밍</div>
+  <div style="font-size:11px;color:var(--muted);margin-bottom:14px">거시경제 지표 기반 매수 적기 분석</div>
+
+  <!-- 종합 판단 -->
+  <div id="timingVerdict" class="card" style="margin-bottom:12px;text-align:center;padding:20px">
+    <div style="font-size:11px;color:var(--muted);margin-bottom:8px">집담 매수 타이밍 점수</div>
+    <div id="timingScore" style="font-family:var(--serif);font-size:56px;font-weight:700;line-height:1;color:var(--gold)">—</div>
+    <div id="timingLabel" style="font-size:14px;font-weight:600;margin-top:6px;color:var(--muted)">분석 중...</div>
+    <div id="timingDesc" style="font-size:11px;color:var(--muted);margin-top:8px;line-height:1.6"></div>
+  </div>
+
+  <!-- 지표 그리드 -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px">
+    <div class="card" style="padding:12px">
+      <div style="font-size:10px;color:var(--muted);margin-bottom:4px">🏦 기준금리</div>
+      <div id="tmRate" style="font-size:20px;font-weight:700;color:var(--gold)">—</div>
+      <div id="tmRateTrend" style="font-size:10px;color:var(--muted);margin-top:2px"></div>
+    </div>
+    <div class="card" style="padding:12px">
+      <div style="font-size:10px;color:var(--muted);margin-bottom:4px">📈 소비자물가(YoY)</div>
+      <div id="tmCpi" style="font-size:20px;font-weight:700">—</div>
+      <div id="tmCpiTrend" style="font-size:10px;color:var(--muted);margin-top:2px"></div>
+    </div>
+    <div class="card" style="padding:12px">
+      <div style="font-size:10px;color:var(--muted);margin-bottom:4px">💵 원/달러 환율</div>
+      <div id="tmUsd" style="font-size:20px;font-weight:700">—</div>
+      <div id="tmUsdTrend" style="font-size:10px;color:var(--muted);margin-top:2px"></div>
+    </div>
+    <div class="card" style="padding:12px">
+      <div style="font-size:10px;color:var(--muted);margin-bottom:4px">🏦 예금금리(1년)</div>
+      <div id="tmDeposit" style="font-size:20px;font-weight:700">—</div>
+      <div id="tmDepositTrend" style="font-size:10px;color:var(--muted);margin-top:2px"></div>
+    </div>
+  </div>
+
+  <!-- 금리 추이 차트 -->
+  <div class="card" style="margin-bottom:12px">
+    <div style="font-size:11px;font-weight:600;color:var(--muted);margin-bottom:8px">📉 기준금리 추이 (2년)</div>
+    <div style="position:relative;height:120px"><canvas id="tmRateChart"></canvas></div>
+  </div>
+
+  <!-- 물가 추이 차트 -->
+  <div class="card" style="margin-bottom:12px">
+    <div style="font-size:11px;font-weight:600;color:var(--muted);margin-bottom:8px">📊 소비자물가 추이 (2년)</div>
+    <div style="position:relative;height:120px"><canvas id="tmCpiChart"></canvas></div>
+  </div>
+
+  <!-- 투자자산 비교 -->
+  <div class="card">
+    <div style="font-size:11px;font-weight:600;color:var(--muted);margin-bottom:10px">💹 투자자산 비교</div>
+    <div id="tmAssets" style="display:flex;flex-direction:column;gap:8px"></div>
+  </div>
+</div>
+</div>
 <div class="fav-page">
   <div style="font-family:var(--serif);font-size:20px;font-weight:700;margin-bottom:3px">관심 단지</div>
   <div style="font-size:11px;color:var(--muted);margin-bottom:14px">즐겨찾기한 등록 아파트</div>
@@ -546,6 +601,9 @@ body{background:#07090f;}
   </button>
   <button class="nb" id="nb-mkt">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>시장현황
+  </button>
+  <button class="nb" id="nb-timing">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>매수타이밍
   </button>
   <button class="nb" id="nb-fav">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>관심단지
@@ -729,6 +787,7 @@ function navTo(p) {
   if(p==='rec')  goToRec()
   if(p==='fav') renderFavs()
   if(p==='mkt') renderMkt()
+  if(p==='timing') renderTiming()
 }
 
 /* ── 검색 ── */
@@ -1430,6 +1489,124 @@ async function goToRec() {
   }
 }
 
+/* ── 매수 타이밍 ── */
+let timingCache = null
+async function renderTiming() {
+  if(timingCache) { applyTimingData(timingCache); return }
+  try {
+    const res  = await fetch(`${PROXY}?type=macro`, {headers:HDR})
+    const data = await res.json()
+    if(!data.ok) return
+    timingCache = data.data
+    applyTimingData(data.data)
+  } catch(e) { console.warn('타이밍 오류:', e) }
+}
+
+function applyTimingData(d) {
+  const last = arr => arr?.length ? arr[arr.length-1] : null
+  const prev = arr => arr?.length > 1 ? arr[arr.length-2] : null
+  const trend = (cur, prv, unit='') => {
+    if(!cur || !prv) return ''
+    const diff = (cur.value - prv.value).toFixed(2)
+    const up = cur.value > prv.value
+    return `<span style="color:${up?'var(--up)':'var(--down)'}">${up?'▲':'▼'} ${Math.abs(diff)}${unit}</span> 전월비`
+  }
+
+  // 기준금리
+  const rate = last(d.rate)
+  if($('tmRate')) $('tmRate').textContent = rate ? rate.value.toFixed(2)+'%' : '—'
+  if($('tmRateTrend')) $('tmRateTrend').innerHTML = trend(rate, prev(d.rate), '%')
+
+  // CPI
+  const cpi = last(d.cpi)
+  if($('tmCpi')) {
+    $('tmCpi').textContent = cpi ? cpi.value.toFixed(1)+'%' : '—'
+    $('tmCpi').style.color = cpi?.value > 3 ? 'var(--down)' : cpi?.value > 2 ? 'var(--gold)' : 'var(--up)'
+  }
+  if($('tmCpiTrend')) $('tmCpiTrend').innerHTML = trend(cpi, prev(d.cpi), '%')
+
+  // 환율
+  const usd = last(d.usdKrw)
+  if($('tmUsd')) {
+    $('tmUsd').textContent = usd ? Math.round(usd.value).toLocaleString()+'원' : '—'
+    $('tmUsd').style.color = usd?.value > 1400 ? 'var(--down)' : usd?.value > 1300 ? 'var(--gold)' : 'var(--up)'
+  }
+  if($('tmUsdTrend')) $('tmUsdTrend').innerHTML = trend(usd, prev(d.usdKrw), '원')
+
+  // 예금금리
+  const dep = last(d.depositRate)
+  if($('tmDeposit')) $('tmDeposit').textContent = dep ? dep.value.toFixed(2)+'%' : '—'
+  if($('tmDepositTrend')) $('tmDepositTrend').innerHTML = trend(dep, prev(d.depositRate), '%')
+
+  // 종합 판단 점수
+  let score = 50
+  // 금리: 낮을수록 매수 유리
+  if(rate) { if(rate.value<=2) score+=20; else if(rate.value<=3) score+=10; else if(rate.value<=4) score+=0; else score-=15 }
+  // CPI: 안정적일수록 유리
+  if(cpi) { if(cpi.value<=2) score+=15; else if(cpi.value<=3) score+=5; else score-=10 }
+  // 환율: 낮을수록 유리
+  if(usd) { if(usd.value<=1200) score+=10; else if(usd.value<=1300) score+=5; else if(usd.value<=1400) score-=5; else score-=15 }
+  // 예금금리 vs 기준금리 갭: 갭이 클수록 부동산 유리
+  if(dep && rate) { const gap = dep.value - rate.value; if(gap>0.5) score+=10; else if(gap<0) score-=10 }
+
+  score = Math.min(Math.max(score, 10), 95)
+  const label = score>=75?'✦ 매수 적기':score>=60?'◈ 조건부 적기':score>=45?'△ 관망':' 매수 비추'
+  const color = score>=75?'var(--up)':score>=60?'var(--gold)':score>=45?'var(--muted)':'var(--down)'
+  const desc  = score>=75?'금리·물가·환율 등 거시경제 지표가 부동산 매수에 우호적입니다.'
+    :score>=60?'일부 지표가 우호적이나 추가 확인이 필요합니다.'
+    :score>=45?'현재 거시경제 환경은 관망이 유리할 수 있습니다.'
+    :'거시경제 지표가 부동산 매수에 비우호적입니다. 신중한 접근을 권장합니다.'
+
+  if($('timingScore')) { $('timingScore').textContent = score; $('timingScore').style.color = color }
+  if($('timingLabel')) { $('timingLabel').textContent = label; $('timingLabel').style.color = color }
+  if($('timingDesc'))    $('timingDesc').textContent = desc
+
+  // 금리 차트
+  drawTimingChart('tmRateChart', d.rate, '기준금리', '#e8c87a', '%')
+  drawTimingChart('tmCpiChart',  d.cpi,  'CPI',      '#4f9cf9', '%')
+
+  // 투자자산 비교
+  const assets = $('tmAssets')
+  if(assets && dep && rate) {
+    const items = [
+      { label:'정기예금 (1년)', val: dep.value.toFixed(2)+'%', color:'var(--blue)', pct: dep.value },
+      { label:'기준금리',       val: rate.value.toFixed(2)+'%', color:'var(--gold)', pct: rate.value },
+    ]
+    assets.innerHTML = items.map(a => `
+      <div style="display:flex;align-items:center;gap:10px">
+        <div style="font-size:12px;color:var(--muted);width:110px;flex-shrink:0">${a.label}</div>
+        <div style="flex:1;height:8px;background:rgba(255,255,255,.08);border-radius:4px;overflow:hidden">
+          <div style="height:100%;width:${Math.min(a.pct*10,100)}%;background:${a.color};border-radius:4px"></div>
+        </div>
+        <div style="font-size:12px;font-weight:700;color:${a.color};width:40px;text-align:right">${a.val}</div>
+      </div>`).join('')
+  }
+}
+
+function drawTimingChart(canvasId, data, label, color, unit='') {
+  const ctx = $(canvasId)
+  if(!ctx || !data?.length) return
+  if(ctx._chart) { ctx._chart.destroy(); ctx._chart = null }
+  const labels = data.map(d => d.time.slice(2,7))
+  const values = data.map(d => d.value)
+  ctx._chart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{ data: values, borderColor: color, backgroundColor: color+'20',
+        borderWidth: 2, pointRadius: 0, fill: true, tension: 0.3 }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { ticks: { color:'#888', font:{size:9}, maxTicksLimit:8 }, grid: { color:'rgba(255,255,255,.04)' } },
+        y: { ticks: { color:'#888', font:{size:9}, callback: v=>v+unit }, grid: { color:'rgba(255,255,255,.04)' } }
+      }
+    }
+  })
+}
+
 /* ── 시장 현황 ── */
 async function renderMkt(skipRate = false) {
   const sidoSel = $('mktSido')
@@ -1745,6 +1922,7 @@ window.addEventListener('DOMContentLoaded', () => {
   $('nb-home')?.addEventListener('click', ()=>navTo('home'))
   $('nb-rec') ?.addEventListener('click', goToRec)
   $('nb-mkt') ?.addEventListener('click', ()=>navTo('mkt'))
+  $('nb-timing')?.addEventListener('click', ()=>navTo('timing'))
   $('nb-fav') ?.addEventListener('click', ()=>navTo('fav'))
   $('ctaBtn') ?.addEventListener('click', goToRec)
   $('msEdit') ?.addEventListener('click', ()=>navTo('home'))
