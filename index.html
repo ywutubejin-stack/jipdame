@@ -1443,7 +1443,8 @@ async function renderMkt(skipRate = false) {
   const fromLabel = $('mktPeriodFrom')?.options[$('mktPeriodFrom')?.selectedIndex]?.text || ''
   const toLabel   = $('mktPeriodTo')?.options[$('mktPeriodTo')?.selectedIndex]?.text || ''
   const periodLabel = fromLabel && toLabel ? `${fromLabel}~${toLabel}` : ''
-  if(title) title.innerHTML = `<strong>${regionName} 실거래 TOP 단지</strong> <span style="font-size:10px;color:var(--muted);font-weight:400">${periodLabel} 기준</span>`
+  const sortLabel = sortVal === 'count' ? '거래량 많은순' : sortVal === 'jsr' ? '전세가율 높은순' : '가격 높은순'
+  if(title) title.innerHTML = `<strong>${regionName} · ${sortLabel}</strong> <span style="font-size:10px;color:var(--muted);font-weight:400">${periodLabel}</span>`
 
   const tb = $('mktTbody')
 
@@ -1617,6 +1618,17 @@ window.onMktChange = () => renderMkt(true)
 function renderMktTable(data, sortVal) {
   const tb = $('mktTbody')
   if(!tb) return
+
+  // 제목 업데이트
+  const title = $('mktCardTitle')
+  const sidoSel = $('mktSido')
+  const regionName = sidoSel?.options[sidoSel.selectedIndex]?.text || '서울 전체'
+  const sortLabel = sortVal === 'count' ? '거래량 많은순' : sortVal === 'jsr' ? '전세가율 높은순' : '가격 높은순'
+  const fromLabel = $('mktPeriodFrom')?.options[$('mktPeriodFrom')?.selectedIndex]?.text || ''
+  const toLabel   = $('mktPeriodTo')?.options[$('mktPeriodTo')?.selectedIndex]?.text || ''
+  const periodLabel = fromLabel && toLabel ? `${fromLabel}~${toLabel}` : ''
+  if(title) title.innerHTML = `<strong>${regionName} · ${sortLabel}</strong> <span style="font-size:10px;color:var(--muted);font-weight:400">${periodLabel}</span>`
+
   let sorted = [...data]
   if(sortVal === 'count')   sorted.sort((a,b)=>(b.count||0)-(a.count||0))
   else if(sortVal === 'jsr') sorted.sort((a,b)=>(b.jeonseRatio||0)-(a.jeonseRatio||0))
