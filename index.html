@@ -572,31 +572,37 @@ body{background:#07090f;}
       <div style="font-size:10px;color:var(--muted);margin-bottom:4px">🏦 기준금리</div>
       <div id="tmRate" style="font-size:20px;font-weight:700;color:var(--gold)">—</div>
       <div id="tmRateTrend" style="font-size:10px;margin-top:2px"></div>
+      <div id="tmRateDate" style="font-size:9px;color:var(--muted);margin-top:3px"></div>
     </div>
     <div class="card" style="padding:12px">
       <div style="font-size:10px;color:var(--muted);margin-bottom:4px">📈 소비자물가(YoY)</div>
       <div id="tmCpi" style="font-size:20px;font-weight:700">—</div>
       <div id="tmCpiTrend" style="font-size:10px;margin-top:2px"></div>
+      <div id="tmCpiDate" style="font-size:9px;color:var(--muted);margin-top:3px"></div>
     </div>
     <div class="card" style="padding:12px">
       <div style="font-size:10px;color:var(--muted);margin-bottom:4px">💵 원/달러 환율</div>
       <div id="tmUsd" style="font-size:20px;font-weight:700">—</div>
       <div id="tmUsdTrend" style="font-size:10px;margin-top:2px"></div>
+      <div id="tmUsdDate" style="font-size:9px;color:var(--muted);margin-top:3px"></div>
     </div>
     <div class="card" style="padding:12px">
       <div style="font-size:10px;color:var(--muted);margin-bottom:4px">💰 M2 통화량(YoY)</div>
       <div id="tmM2" style="font-size:20px;font-weight:700">—</div>
       <div id="tmM2Trend" style="font-size:10px;margin-top:2px"></div>
+      <div id="tmM2Date" style="font-size:9px;color:var(--muted);margin-top:3px"></div>
     </div>
     <div class="card" style="padding:12px">
       <div style="font-size:10px;color:var(--muted);margin-bottom:4px">🏦 예금금리(1년)</div>
       <div id="tmDeposit" style="font-size:20px;font-weight:700">—</div>
       <div id="tmDepositTrend" style="font-size:10px;margin-top:2px"></div>
+      <div id="tmDepositDate" style="font-size:9px;color:var(--muted);margin-top:3px"></div>
     </div>
     <div class="card" style="padding:12px">
       <div style="font-size:10px;color:var(--muted);margin-bottom:4px">🏠 주담대금리(변동)</div>
       <div id="tmMortgage" style="font-size:20px;font-weight:700">—</div>
       <div id="tmMortgageTrend" style="font-size:10px;margin-top:2px"></div>
+      <div id="tmMortgageDate" style="font-size:9px;color:var(--muted);margin-top:3px"></div>
     </div>
   </div>
 
@@ -1589,8 +1595,17 @@ function applyTimingData(d) {
 
   // 지표 표시
   if($('tmRate'))    { $('tmRate').textContent = rate ? rate.value.toFixed(2)+'%' : '—'; $('tmRate').style.color = 'var(--gold)' }
+  // 기준일 포맷 함수
+  const fmtDate = t => {
+    const s = String(t||'')
+    if(s.length===8) return s.slice(0,4)+'.'+s.slice(4,6)+'.'+s.slice(6,8)+' 기준'
+    if(s.length===6) return s.slice(0,4)+'.'+s.slice(4,6)+' 기준'
+    return s ? s+' 기준' : ''
+  }
+  if($('tmRateDate'))  $('tmRateDate').textContent  = fmtDate(rate?.time)
   if($('tmRateTrend'))  $('tmRateTrend').innerHTML  = trend(rate, prev(d.rate), '%p', '전월비')
   if($('tmCpi'))     { $('tmCpi').textContent = cpi ? cpi.value.toFixed(1)+'%' : '—'; $('tmCpi').style.color = cpi?.value > 3?'var(--down)':cpi?.value>2?'var(--gold)':'var(--up)' }
+  if($('tmCpiDate'))   $('tmCpiDate').textContent   = fmtDate(cpi?.time)
   if($('tmCpiTrend'))   $('tmCpiTrend').innerHTML   = trend(cpi, prev(d.cpi), '%p', '전월비')
   // 환율 — 일별 최신값 사용
   const usdLatest = d.usdLatest || last(d.usdKrw)
@@ -1601,51 +1616,106 @@ function applyTimingData(d) {
       $('tmUsd').style.color = usdLatest.value>1400?'var(--down)':usdLatest.value>1300?'var(--gold)':'var(--up)'
     } else $('tmUsd').textContent = '—'
   }
+  if($('tmUsdDate'))  $('tmUsdDate').textContent  = fmtDate(usdLatest?.time)
   if($('tmUsdTrend')) $('tmUsdTrend').innerHTML = trend(usdLatest, usdPrev, '원', '전일비', true)
   if($('tmDeposit')) { $('tmDeposit').textContent = dep?.value ? dep.value.toFixed(2)+'%' : '—' }
+  if($('tmDepositDate')) $('tmDepositDate').textContent = fmtDate(dep?.time)
   if($('tmDepositTrend')) $('tmDepositTrend').innerHTML = trend(dep, prev(d.depositRate), '%p', '전월비')
   if($('tmMortgage')){ $('tmMortgage').textContent = mort?.value ? mort.value.toFixed(2)+'%' : '—'; $('tmMortgage').style.color='var(--down)' }
+  if($('tmMortgageDate')) $('tmMortgageDate').textContent = fmtDate(mort?.time)
   if($('tmMortgageTrend')) $('tmMortgageTrend').innerHTML = trend(mort, prev(d.mortgageRate), '%p', '전월비')
   if($('tmM2'))      { $('tmM2').textContent = m2?.value ? m2.value.toFixed(1)+'%' : '—'; $('tmM2').style.color = m2?.value>10?'var(--up)':m2?.value>5?'var(--gold)':'var(--muted)' }
+  if($('tmM2Date'))    $('tmM2Date').textContent    = fmtDate(m2?.time)
   if($('tmM2Trend'))    $('tmM2Trend').innerHTML    = trend(m2, prev(d.m2), '%p', '전월비')
 
   // ── 종합 점수 계산 ──
-  let score = 50
+  // 항목별 만점 정의 (합계 100점)
+  // 기준금리 25점, 물가 20점, 환율 15점, M2 15점, 예금금리 15점, 주담대금리 10점
+  let score = 0
   const scoreReasons = []
 
+  // 기준금리 (25점 만점)
   if(rate) {
-    if(rate.value<=2)      { score+=20; scoreReasons.push({icon:'🏦', title:'기준금리 매우 낮음', detail:`현재 기준금리 ${rate.value}%는 역사적 저금리 수준이에요. 대출 이자 부담이 줄어 집 사기 유리한 환경이에요.`, good:true, pts:+20}) }
-    else if(rate.value<=3) { score+=10; scoreReasons.push({icon:'🏦', title:'기준금리 적정 수준', detail:`기준금리 ${rate.value}%는 부동산 매수에 비교적 유리한 수준이에요. 대출 이자 부담이 크지 않아요.`, good:true, pts:+10}) }
-    else if(rate.value<=4) { score+=0;  scoreReasons.push({icon:'🏦', title:'기준금리 다소 높음', detail:`기준금리 ${rate.value}%는 대출 이자 부담이 적지 않아요. 월 상환액을 꼼꼼히 계산해보세요.`, good:null, pts:0}) }
-    else                   { score-=15; scoreReasons.push({icon:'🏦', title:'기준금리 고금리 구간', detail:`기준금리 ${rate.value}%는 대출 이자 부담이 커요. 같은 금액을 빌려도 매월 갚아야 할 돈이 많아져요.`, good:false, pts:-15}) }
+    const r = rate.value
+    const pts = r<=2 ? 25 : r<=2.5 ? 20 : r<=3 ? 15 : r<=3.5 ? 8 : r<=4 ? 3 : 0
+    score += pts
+    const good = pts >= 15 ? true : pts >= 8 ? null : false
+    const title = pts>=20?'기준금리 매우 낮음':pts>=15?'기준금리 낮음':pts>=8?'기준금리 보통':pts>=3?'기준금리 높음':'기준금리 매우 높음'
+    const detail = pts>=15
+      ? `기준금리 ${r}%는 낮은 수준이에요. 대출 이자 부담이 줄어 집 사기 유리한 환경이에요.`
+      : pts>=8
+      ? `기준금리 ${r}%는 보통 수준이에요. 대출 이자 부담이 크지 않지만 주의가 필요해요.`
+      : `기준금리 ${r}%는 높은 수준이에요. 대출 이자 부담이 크기 때문에 신중하게 접근해야 해요.`
+    scoreReasons.push({icon:'🏦', title, detail, good, pts, max:25})
   }
 
+  // 소비자물가 (20점 만점)
   if(cpi) {
-    if(cpi.value<=2)       { score+=15; scoreReasons.push({icon:'📊', title:'물가 안정', detail:`물가 상승률 ${cpi.value.toFixed(1)}%는 매우 안정적이에요. 실질 구매력이 유지되고 한국은행이 금리를 내릴 여지가 생겨요.`, good:true, pts:+15}) }
-    else if(cpi.value<=3)  { score+=5;  scoreReasons.push({icon:'📊', title:'물가 보통 수준', detail:`물가 상승률 ${cpi.value.toFixed(1)}%는 한국은행 목표(2%)를 살짝 넘는 수준이에요. 금리 인하 가능성이 제한될 수 있어요.`, good:null, pts:+5}) }
-    else                   { score-=10; scoreReasons.push({icon:'📊', title:'물가 높음 — 금리 인하 어려워', detail:`물가 상승률 ${cpi.value.toFixed(1)}%는 높은 편이에요. 한국은행이 물가를 잡기 위해 금리를 쉽게 내리지 못해요.`, good:false, pts:-10}) }
+    const v = cpi.value
+    const pts = v<=1.5 ? 20 : v<=2 ? 18 : v<=2.5 ? 13 : v<=3 ? 7 : v<=4 ? 3 : 0
+    score += pts
+    const good = pts >= 13 ? true : pts >= 7 ? null : false
+    const title = pts>=18?'물가 안정':pts>=13?'물가 양호':pts>=7?'물가 보통':pts>=3?'물가 높음':'물가 매우 높음'
+    scoreReasons.push({icon:'📊', title,
+      detail: pts>=13
+        ? `물가 상승률 ${v.toFixed(1)}%는 안정적이에요. 한국은행이 금리를 내릴 여지가 생겨요.`
+        : pts>=7
+        ? `물가 상승률 ${v.toFixed(1)}%는 목표치(2%)를 넘어요. 금리 인하가 제한될 수 있어요.`
+        : `물가 상승률 ${v.toFixed(1)}%는 높아요. 한국은행이 금리를 쉽게 내리기 어려워요.`,
+      good, pts, max:20})
   }
 
+  // 환율 (15점 만점)
   if(usd) {
-    if(usd.value<=1200)    { score+=10; scoreReasons.push({icon:'💵', title:'원화 강세 — 외국인 투자 유리', detail:`달러당 ${Math.round(usd.value)}원으로 원화가 강한 상태예요. 외국인 부동산 투자가 활발해져 가격 상승 요인이 될 수 있어요.`, good:true, pts:+10}) }
-    else if(usd.value<=1300){ score+=5; scoreReasons.push({icon:'💵', title:'환율 안정적', detail:`달러당 ${Math.round(usd.value)}원으로 환율이 안정적이에요. 경제 불확실성이 크지 않은 신호예요.`, good:null, pts:+5}) }
-    else if(usd.value<=1400){ score-=5; scoreReasons.push({icon:'💵', title:'원화 약세 — 수입물가 상승 우려', detail:`달러당 ${Math.round(usd.value)}원으로 원화가 약해졌어요. 수입 물가가 오르면 생활비 부담이 커지고 집 살 여력이 줄어요.`, good:false, pts:-5}) }
-    else                   { score-=15; scoreReasons.push({icon:'💵', title:'원화 급약세 — 경기 불안 신호', detail:`달러당 ${Math.round(usd.value)}원으로 원화가 많이 약해졌어요. 경제 불안 신호일 수 있어 부동산 투자에 신중해야 해요.`, good:false, pts:-15}) }
+    const v = usd.value
+    const pts = v<=1150 ? 15 : v<=1250 ? 12 : v<=1350 ? 8 : v<=1450 ? 3 : 0
+    score += pts
+    const good = pts >= 8 ? true : pts >= 3 ? null : false
+    scoreReasons.push({icon:'💵', title: pts>=12?'환율 안정':pts>=8?'환율 보통':pts>=3?'원화 약세':'원화 급약세',
+      detail: pts>=8
+        ? `달러당 ${Math.round(v)}원으로 환율이 안정적이에요.`
+        : `달러당 ${Math.round(v)}원으로 원화가 약해진 상태예요. 경제 불확실성이 있어요.`,
+      good, pts, max:15})
   }
 
+  // M2 통화량 (15점 만점)
   if(m2) {
-    if(m2.value>=8)        { score+=10; scoreReasons.push({icon:'💰', title:'통화량 증가 — 유동성 풍부', detail:`시중에 돈(M2)이 전년 대비 ${m2.value.toFixed(1)}% 늘었어요. 시중에 돈이 많이 풀리면 부동산 가격이 오르는 경향이 있어요.`, good:true, pts:+10}) }
-    else if(m2.value>=4)   { score+=5;  scoreReasons.push({icon:'💰', title:'통화량 보통', detail:`M2 증가율 ${m2.value.toFixed(1)}%는 적정 수준이에요. 시중 유동성이 크게 넘치거나 부족하지 않아요.`, good:null, pts:+5}) }
-    else                   { score-=5;  scoreReasons.push({icon:'💰', title:'통화량 증가 둔화', detail:`M2 증가율 ${m2.value.toFixed(1)}%는 낮은 편이에요. 시중에 돈이 줄어드는 신호로 부동산 수요가 약해질 수 있어요.`, good:false, pts:-5}) }
+    const v = m2.value
+    const pts = v>=7 ? 15 : v>=5 ? 12 : v>=3 ? 8 : v>=1 ? 4 : 0
+    score += pts
+    const good = pts >= 8 ? true : pts >= 4 ? null : false
+    scoreReasons.push({icon:'💰', title: pts>=12?'통화량 증가 — 유동성 풍부':pts>=8?'통화량 보통':'통화량 증가 둔화',
+      detail: pts>=8
+        ? `M2 증가율 ${v.toFixed(1)}%로 시중에 유동성이 충분해요. 부동산 수요를 지지해요.`
+        : `M2 증가율 ${v.toFixed(1)}%로 유동성이 줄고 있어요. 부동산 수요가 약해질 수 있어요.`,
+      good, pts, max:15})
   }
 
+  // 예금금리 vs 기준금리 (15점 만점)
   if(dep && rate) {
     const gap = dep.value - rate.value
-    if(gap>1)              { score-=5;  scoreReasons.push({icon:'🏦', title:'예금 매력도 높음 — 관망 심리 강해', detail:`예금금리(${dep.value.toFixed(2)}%)가 기준금리보다 ${gap.toFixed(2)}%p 높아요. 많은 사람들이 은행 예금을 선택할 수 있어 부동산 수요가 줄 수 있어요.`, good:false, pts:-5}) }
-    else                   { score+=5;  scoreReasons.push({icon:'🏦', title:'예금 매력도 낮음 — 실물자산 선호', detail:`예금 대비 부동산의 상대적 매력이 높아요. 낮은 예금금리는 사람들이 부동산 같은 실물자산을 찾게 만들어요.`, good:true, pts:+5}) }
+    const pts = gap < 0 ? 15 : gap < 0.5 ? 12 : gap < 1 ? 8 : gap < 1.5 ? 3 : 0
+    score += pts
+    const good = pts >= 8 ? true : pts >= 3 ? null : false
+    scoreReasons.push({icon:'🏦', title: pts>=12?'예금보다 부동산 매력 높음':pts>=8?'예금·부동산 매력 비슷':'예금 매력도 높음',
+      detail: pts>=8
+        ? `예금금리(${dep.value.toFixed(2)}%)보다 부동산의 기대수익이 높아요.`
+        : `예금금리(${dep.value.toFixed(2)}%)가 높아 많은 사람들이 예금을 선호할 수 있어요.`,
+      good, pts, max:15})
   }
 
-  score = Math.min(Math.max(score, 10), 95)
+  // 주담대금리 (10점 만점)
+  if(mort) {
+    const v = mort.value
+    const pts = v<=3 ? 10 : v<=3.5 ? 8 : v<=4 ? 5 : v<=5 ? 2 : 0
+    score += pts
+    const good = pts >= 5 ? true : pts >= 2 ? null : false
+    scoreReasons.push({icon:'🏠', title: pts>=8?'주담대 금리 낮음':pts>=5?'주담대 금리 보통':'주담대 금리 높음',
+      detail: `주택담보대출 변동금리 ${v.toFixed(2)}%예요. ${pts>=5?'이자 부담이 적정 수준이에요.':'이자 부담이 큰 편이에요. 대출 규모를 줄이는 게 좋아요.'}`,
+      good, pts, max:10})
+  }
+
+  score = Math.min(Math.max(Math.round(score), 0), 100)
   const label = score>=75?'✦ 지금이 매수 적기예요':score>=60?'◈ 조건부로 매수 고려해볼 만해요':score>=45?'△ 아직은 조금 더 지켜보세요':'✕ 지금은 매수를 서두르지 마세요'
   const color = score>=75?'var(--up)':score>=60?'var(--gold)':score>=45?'var(--muted)':'var(--down)'
 
@@ -1677,7 +1747,7 @@ function applyTimingData(d) {
       <div style="padding:10px 0;border-bottom:1px solid rgba(255,255,255,.05)">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
           <div style="font-size:12px;font-weight:600">${r.icon} ${r.title}</div>
-          <div style="font-size:11px;font-weight:700;color:${r.good===true?'var(--up)':r.good===false?'var(--down)':'var(--muted)'}">${r.pts>0?'+'+r.pts:r.pts===0?'±0':r.pts}점</div>
+          <div style="font-size:11px;font-weight:700;color:${r.good===true?'var(--up)':r.good===false?'var(--down)':'var(--muted)'}">${r.pts}/${r.max||'?'}점</div>
         </div>
         <div style="font-size:11px;color:var(--muted);line-height:1.6">${r.detail}</div>
       </div>`).join('')
