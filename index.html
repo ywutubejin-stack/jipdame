@@ -1564,7 +1564,6 @@ async function renderTiming() {
     applyTimingData(data.data)
     loadStocks()
     loadSupply()
-    $('supplyRegion')?.addEventListener('change', (e:any) => loadSupply(e.target.value))
   } catch(e) { console.warn('타이밍 오류:', e) }
 }
 
@@ -2142,6 +2141,7 @@ window.addEventListener('DOMContentLoaded', () => {
   $('nb-mkt') ?.addEventListener('click', ()=>navTo('mkt'))
   $('nb-timing')?.addEventListener('click', ()=>navTo('timing'))
   $('nb-fav') ?.addEventListener('click', ()=>navTo('fav'))
+  $('supplyRegion')?.addEventListener('change', (e) => loadSupply((e.target as HTMLSelectElement).value))
   $('ctaBtn') ?.addEventListener('click', goToRec)
   $('msEdit') ?.addEventListener('click', ()=>navTo('home'))
   $('viewList')?.addEventListener('click', ()=>setView('list'))
