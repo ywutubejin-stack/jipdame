@@ -1805,6 +1805,15 @@ async function loadStocks() {
           </div>
         </div>`
     }).join('')
+
+    // 야후파이낸스 환율로 tmUsd 업데이트 (더 정확한 실시간 값)
+    const usdData = data.data['usd']
+    if(usdData?.cur && $('tmUsd')) {
+      $('tmUsd').textContent = Math.round(usdData.cur).toLocaleString()+'원'
+      $('tmUsd').style.color = usdData.cur>1400?'var(--down)':usdData.cur>1300?'var(--gold)':'var(--up)'
+      const up = usdData.chg >= 0
+      if($('tmUsdTrend')) $('tmUsdTrend').innerHTML = `<span style="color:${up?'var(--up)':'var(--down)'}">${up?'▲':'▼'} ${Math.abs(usdData.chg)}%</span> <span style="color:var(--muted)">전일비</span>`
+    }
   } catch(e) {
     const el2 = $('tmStocks')
     if(el2) el2.innerHTML = '<div style="color:var(--muted);font-size:11px;text-align:center;padding:12px">데이터 로드 실패</div>'
