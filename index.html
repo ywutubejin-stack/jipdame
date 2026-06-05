@@ -647,6 +647,16 @@ body{background:#07090f;}
         <option value="대구">대구</option>
         <option value="대전">대전</option>
         <option value="광주">광주</option>
+        <option value="울산">울산</option>
+        <option value="세종">세종</option>
+        <option value="강원">강원</option>
+        <option value="충북">충북</option>
+        <option value="충남">충남</option>
+        <option value="전북">전북</option>
+        <option value="전남">전남</option>
+        <option value="경북">경북</option>
+        <option value="경남">경남</option>
+        <option value="제주">제주</option>
       </select>
     </div>
     <div id="tmSupply" style="display:flex;flex-direction:column;gap:6px">
@@ -1805,25 +1815,52 @@ function applyTimingData(d) {
   const assets = $('tmAssets')
   if(assets && rate) {
     const mortVal = mort?.value || rate.value+1.5
-    const items = [
-      { label:'기준금리',           val: rate.value.toFixed(2)+'%', color:'var(--gold)',  pct: rate.value,  desc:'한국은행 기준' },
-      { label:'정기예금 (1년)',     val: dep?.value ? dep.value.toFixed(2)+'%':'—',      color:'var(--blue)', pct: dep?.value||0, desc:'은행 수신금리' },
-      { label:'주담대 변동금리',    val: mortVal.toFixed(2)+'%',                          color:'var(--down)', pct: mortVal,       desc:'실제 대출 시 적용' },
+    const depVal  = dep?.value || 0
+    const kospi   = window._stocksData?.kospi
+    const sp500   = window._stocksData?.sp500
+
+    // 부동산 기대수익 추정 (전세가율 기반 임대수익 + 자본이익)
+    const estRealEstate = 3.5 // 서울 평균 임대수익률 추정 (%)
+    
+    // 투자자산 비교 항목
+    const compareItems = [
+      { label:'정기예금', val: depVal ? depVal.toFixed(2)+'%' : '—', color:'var(--blue)', pct: depVal,
+        desc: '안전 자산. 원금 보장', good: depVal < mortVal },
+      { label:'주담대 이자', val: mortVal.toFixed(2)+'%', color:'var(--down)', pct: mortVal,
+        desc: '대출 시 매월 부담', good: false },
+      { label:'코스피 (최근)', val: kospi?.chg != null ? (kospi.chg>0?'+':'')+kospi.chg+'%' : '—', 
+        color: kospi?.chg >= 0 ? 'var(--up)' : 'var(--down)', pct: Math.abs(kospi?.chg||0)*2,
+        desc: '전일 등락률', good: null },
+      { label:'부동산 추정수익', val: estRealEstate+'%', color:'var(--gold)', pct: estRealEstate,
+        desc: '임대수익 기준 (자본이익 별도)', good: estRealEstate > depVal },
     ]
+
+    // 핵심 판단
+    const loanBurden  = mortVal > 4   // 대출 부담 높음
+    const depositGood = depVal > 3    // 예금 매력 높음
+    const verdict = loanBurden && depositGood
+      ? '⚠️ 지금은 예금과 주식도 충분히 매력적이에요. 굳이 대출을 많이 받아 집을 살 이유가 적어요.'
+      : loanBurden
+      ? '⚠️ 대출 이자 부담이 크지만 장기 보유 시 자산 가치 상승 가능성을 고려하세요.'
+      : depVal < 2.5
+      ? '✅ 예금 금리가 낮아 실물자산인 부동산이 상대적으로 매력적이에요.'
+      : '📊 부동산과 금융자산 간 수익률 차이가 크지 않아요. 개인 상황에 맞게 판단하세요.'
+
     assets.innerHTML = `
-      <div style="font-size:11px;color:var(--muted);margin-bottom:8px">💡 예금금리보다 대출금리가 높을수록 집값 상승 압력이 커져요</div>
-      ${items.map(a => `
-      <div style="display:flex;align-items:center;gap:10px">
-        <div style="font-size:11px;color:var(--muted);width:100px;flex-shrink:0">${a.label}<br><span style="font-size:9px">${a.desc}</span></div>
-        <div style="flex:1;height:8px;background:rgba(255,255,255,.08);border-radius:4px;overflow:hidden">
-          <div style="height:100%;width:${Math.min(a.pct*12,100)}%;background:${a.color};border-radius:4px;transition:width .6s"></div>
+      <div style="font-size:11px;color:var(--muted);margin-bottom:10px">자본을 어디에 두는 게 유리한지 비교해요</div>
+      ${compareItems.map(a => `
+      <div style="display:flex;align-items:center;gap:8px;padding:4px 0">
+        <div style="font-size:11px;width:90px;flex-shrink:0">
+          <div style="color:var(--text);font-weight:600">${a.label}</div>
+          <div style="font-size:9px;color:var(--muted)">${a.desc}</div>
         </div>
-        <div style="font-size:13px;font-weight:700;color:${a.color};width:44px;text-align:right">${a.val}</div>
+        <div style="flex:1;height:8px;background:rgba(255,255,255,.08);border-radius:4px;overflow:hidden">
+          <div style="height:100%;width:${Math.min(a.pct*10,100)}%;background:${a.color};border-radius:4px;transition:width .6s"></div>
+        </div>
+        <div style="font-size:13px;font-weight:700;color:${a.color};width:50px;text-align:right">${a.val}</div>
       </div>`).join('')}
-      <div style="margin-top:10px;padding:10px;background:var(--bg3);border-radius:10px;font-size:11px;line-height:1.7;color:var(--muted)">
-        ${rate.value <= 2.5 ? '💡 저금리 환경이에요. 예금 이자보다 집값 상승으로 얻는 이익이 클 수 있어요.'
-          : rate.value <= 3.5 ? '💡 중립 금리예요. 입지와 가격이 좋은 단지 위주로 선별 매수를 고려해보세요.'
-          : '💡 고금리 환경이에요. 대출을 많이 받으면 이자 부담이 커요. 자기자본 비율을 높이는 게 유리해요.'}
+      <div style="margin-top:12px;padding:10px;background:var(--bg3);border-radius:10px;font-size:11px;line-height:1.8;color:var(--muted)">
+        ${verdict}
       </div>`
   }
 
@@ -1891,6 +1928,9 @@ async function loadStocks() {
           </div>
         </div>`
     }).join('')
+
+    // 전역 저장 (부동산 vs 투자 비교에서 사용)
+    window._stocksData = data.data
 
     // 야후파이낸스 환율로 tmUsd 업데이트 (더 정확한 실시간 값)
     const usdData = data.data['usd']
