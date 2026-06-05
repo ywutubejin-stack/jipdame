@@ -1817,51 +1817,98 @@ function applyTimingData(d) {
     const mortVal = mort?.value || rate.value+1.5
     const depVal  = dep?.value || 0
     const kospi   = window._stocksData?.kospi
-    const sp500   = window._stocksData?.sp500
 
-    // 부동산 기대수익 추정 (전세가율 기반 임대수익 + 자본이익)
-    const estRealEstate = 3.5 // 서울 평균 임대수익률 추정 (%)
-    
-    // 투자자산 비교 항목
+    // 내 조건
+    const myAsset   = (state?.asset || 0) * 10000
+    const myLoan    = (state?.maxLoan || 0) * 10000
+    const myPower   = myAsset + myLoan
+    const myMonthly = state?.monthly || 0
+    const hasCondition = myAsset > 0
+
+    // 5년 시뮬레이션
+    const months = 60
+    const totalInterest  = myMonthly * months
+    const aptValueAfter  = myPower * Math.pow(1.04, 5)
+    const aptProfit      = aptValueAfter - myPower - totalInterest
+    const depositProfit  = myAsset * (Math.pow(1 + (depVal||0)/100, 5) - 1)
+    const stockProfit    = myAsset * (Math.pow(1.07, 5) - 1)
+
+    // 비교 항목
     const compareItems = [
-      { label:'정기예금', val: depVal ? depVal.toFixed(2)+'%' : '—', color:'var(--blue)', pct: depVal,
-        desc: '안전 자산. 원금 보장', good: depVal < mortVal },
-      { label:'주담대 이자', val: mortVal.toFixed(2)+'%', color:'var(--down)', pct: mortVal,
-        desc: '대출 시 매월 부담', good: false },
-      { label:'코스피 (최근)', val: kospi?.chg != null ? (kospi.chg>0?'+':'')+kospi.chg+'%' : '—', 
-        color: kospi?.chg >= 0 ? 'var(--up)' : 'var(--down)', pct: Math.abs(kospi?.chg||0)*2,
-        desc: '전일 등락률', good: null },
-      { label:'부동산 추정수익', val: estRealEstate+'%', color:'var(--gold)', pct: estRealEstate,
-        desc: '임대수익 기준 (자본이익 별도)', good: estRealEstate > depVal },
+      { label:'정기예금', val: depVal ? depVal.toFixed(2)+'%' : '—', color:'var(--blue)', pct: Math.min(depVal*10,100), desc:'원금 보장 안전자산' },
+      { label:'주담대 이자', val: mortVal.toFixed(2)+'%', color:'var(--down)', pct: Math.min(mortVal*10,100), desc:'대출 시 매월 부담' },
+      { label:'코스피 등락', val: kospi?.chg != null ? (kospi.chg>=0?'+':'')+kospi.chg+'%' : '—',
+        color: kospi?.chg >= 0 ? 'var(--up)' : 'var(--down)', pct: Math.min(Math.abs(kospi?.chg||0)*5,100), desc:'전일 등락률' },
     ]
 
-    // 핵심 판단
-    const loanBurden  = mortVal > 4   // 대출 부담 높음
-    const depositGood = depVal > 3    // 예금 매력 높음
+    const loanBurden  = mortVal > 4
+    const depositGood = depVal > 3
     const verdict = loanBurden && depositGood
-      ? '⚠️ 지금은 예금과 주식도 충분히 매력적이에요. 굳이 대출을 많이 받아 집을 살 이유가 적어요.'
-      : loanBurden
-      ? '⚠️ 대출 이자 부담이 크지만 장기 보유 시 자산 가치 상승 가능성을 고려하세요.'
+      ? '⚠️ 지금은 예금/주식도 충분히 매력적이에요. 대출을 많이 받아 집을 살 이유가 적어요.'
       : depVal < 2.5
       ? '✅ 예금 금리가 낮아 실물자산인 부동산이 상대적으로 매력적이에요.'
-      : '📊 부동산과 금융자산 간 수익률 차이가 크지 않아요. 개인 상황에 맞게 판단하세요.'
+      : '📊 부동산과 금융자산 수익률 차이가 크지 않아요. 개인 상황에 맞게 판단하세요.'
 
     assets.innerHTML = `
       <div style="font-size:11px;color:var(--muted);margin-bottom:10px">자본을 어디에 두는 게 유리한지 비교해요</div>
       ${compareItems.map(a => `
-      <div style="display:flex;align-items:center;gap:8px;padding:4px 0">
+      <div style="display:flex;align-items:center;gap:8px;padding:5px 0">
         <div style="font-size:11px;width:90px;flex-shrink:0">
           <div style="color:var(--text);font-weight:600">${a.label}</div>
           <div style="font-size:9px;color:var(--muted)">${a.desc}</div>
         </div>
         <div style="flex:1;height:8px;background:rgba(255,255,255,.08);border-radius:4px;overflow:hidden">
-          <div style="height:100%;width:${Math.min(a.pct*10,100)}%;background:${a.color};border-radius:4px;transition:width .6s"></div>
+          <div style="height:100%;width:${a.pct}%;background:${a.color};border-radius:4px;transition:width .6s"></div>
         </div>
         <div style="font-size:13px;font-weight:700;color:${a.color};width:50px;text-align:right">${a.val}</div>
       </div>`).join('')}
-      <div style="margin-top:12px;padding:10px;background:var(--bg3);border-radius:10px;font-size:11px;line-height:1.8;color:var(--muted)">
-        ${verdict}
-      </div>`
+      <div style="margin-top:10px;padding:10px;background:var(--bg3);border-radius:10px;font-size:11px;line-height:1.8;color:var(--muted)">${verdict}</div>
+
+      ${hasCondition ? `
+      <div style="margin-top:14px">
+        <div style="font-size:12px;font-weight:700;margin-bottom:6px">📊 내 자금으로 5년 시뮬레이션</div>
+        <div style="font-size:10px;color:var(--muted);margin-bottom:10px">자산 ${fmt(myAsset)} + 대출 ${fmt(myLoan)} = 총 ${fmt(myPower)} 기준</div>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <div style="padding:12px;background:var(--bg3);border-radius:10px">
+            <div style="display:flex;justify-content:space-between;margin-bottom:5px">
+              <div style="font-size:12px;font-weight:700">🏠 부동산 매수</div>
+              <div style="font-size:13px;font-weight:700;color:${aptProfit>0?'var(--up)':'var(--down)'}">${aptProfit>0?'+':''}${fmt(aptProfit)}</div>
+            </div>
+            <div style="font-size:10px;color:var(--muted);line-height:1.7">
+              월 이자 ${fmt(myMonthly)} × 60개월 = ${fmt(totalInterest)} 부담<br>
+              연 4% 상승 가정 → 5년 후 ${fmt(aptValueAfter)}<br>
+              <span style="color:${aptProfit>0?'var(--up)':'var(--down)'}">순이익 ${aptProfit>0?'+':''}${fmt(aptProfit)}</span>
+            </div>
+          </div>
+          <div style="padding:12px;background:var(--bg3);border-radius:10px">
+            <div style="display:flex;justify-content:space-between;margin-bottom:5px">
+              <div style="font-size:12px;font-weight:700">🏦 예금 (자산만)</div>
+              <div style="font-size:13px;font-weight:700;color:var(--blue)">+${fmt(depositProfit)}</div>
+            </div>
+            <div style="font-size:10px;color:var(--muted);line-height:1.7">
+              ${fmt(myAsset)} × ${depVal.toFixed(2)}% × 5년<br>
+              대출 없이 안전하게 운용. 원금 보장
+            </div>
+          </div>
+          <div style="padding:12px;background:var(--bg3);border-radius:10px">
+            <div style="display:flex;justify-content:space-between;margin-bottom:5px">
+              <div style="font-size:12px;font-weight:700">📈 주식 (코스피 연평균)</div>
+              <div style="font-size:13px;font-weight:700;color:var(--up)">+${fmt(stockProfit)}</div>
+            </div>
+            <div style="font-size:10px;color:var(--muted);line-height:1.7">
+              ${fmt(myAsset)} × 연 7% × 5년 (과거 평균 기준)<br>
+              변동성 있음. 원금 손실 가능
+            </div>
+          </div>
+        </div>
+        <div style="margin-top:8px;font-size:9px;color:var(--muted)">
+          ※ 추정값이에요. 실제 수익은 시장 상황에 따라 달라져요.
+        </div>
+      </div>` : `
+      <div style="margin-top:10px;padding:10px;border:1px dashed rgba(255,255,255,.1);border-radius:10px;font-size:11px;color:var(--muted);text-align:center">
+        💡 내조건 탭에서 자산/소득을 입력하면<br>맞춤 5년 시뮬레이션을 볼 수 있어요
+      </div>`}
+    `
   }
 
   // 차트
@@ -1931,6 +1978,9 @@ async function loadStocks() {
 
     // 전역 저장 (부동산 vs 투자 비교에서 사용)
     window._stocksData = data.data
+
+    // stocks 로드 후 assets 섹션 다시 렌더링
+    if(timingCache) applyTimingData(timingCache)
 
     // 야후파이낸스 환율로 tmUsd 업데이트 (더 정확한 실시간 값)
     const usdData = data.data['usd']
