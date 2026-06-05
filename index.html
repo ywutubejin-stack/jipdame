@@ -2044,8 +2044,10 @@ async function loadStocks() {
     // 전역 저장 (부동산 vs 투자 비교에서 사용)
     window._stocksData = data.data
 
-    // stocks 로드 후 assets 섹션 다시 렌더링
-    if(timingCache) applyTimingData(timingCache)
+    // stocks 로드 후 assets 섹션만 업데이트 (타이밍 탭이 활성화된 경우만)
+    if(timingCache && $('page-timing')?.classList.contains('active')) {
+      applyTimingData(timingCache)
+    }
 
     // 야후파이낸스 환율로 tmUsd 업데이트 (더 정확한 실시간 값)
     const usdData = data.data['usd']
