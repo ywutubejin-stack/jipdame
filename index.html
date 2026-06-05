@@ -1630,7 +1630,7 @@ function applyTimingData(d) {
   if($('tmMortgageTrend')) $('tmMortgageTrend').innerHTML = trend(mort, prev(d.mortgageRate), '%p', '전월비')
   if($('tmM2Abs')) {
     const m2Ks = d.ks?.m2
-    if(m2Ks?.value) $('tmM2Abs').textContent = Math.round(m2Ks.value/1000000).toLocaleString()+'조원'
+    if(m2Ks?.value) $('tmM2Abs').textContent = Math.round(m2Ks.value/1000).toLocaleString()+'조원'
   }
   if($('tmM2'))    {
     if(m2?.value != null) { $('tmM2').textContent = '전년비 '+m2.value.toFixed(1)+'%'; $('tmM2').style.color = m2.value>8?'var(--up)':m2.value>4?'var(--gold)':'var(--muted)' }
