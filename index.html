@@ -1586,12 +1586,15 @@ function applyTimingData(d) {
     return `<span style="color:${up?'var(--up)':'var(--down)'}">${up?'▲':'▼'} ${diffStr}${unit}${showPct?' ('+pctStr+'%)':''}</span> <span style="color:var(--muted)">${label}</span>`
   }
 
-  const rate = last(d.rate)
-  const cpi  = last(d.cpi)
-  const usd  = d.usdLatest || last(d.usdKrw)
-  const dep  = last(d.depositRate)
-  const mort = last(d.mortgageRate)
+  const rate = d.ks?.rate || last(d.rate)
+  const cpi  = last(d.cpi) || d.cpiLatest
+  const usd  = d.usdLatest || d.ks?.usd || last(d.usdKrw)
+  const dep  = d.ks?.deposit || last(d.depositRate)
+  const mort = d.ks?.mort || last(d.mortgageRate)
   const m2   = last(d.m2)
+  
+  // M2는 전년동월비가 없으면 KeyStat 원시값으로 표시
+  const m2Ks = d.ks?.m2
 
   // 지표 표시
   if($('tmRate'))    { $('tmRate').textContent = rate ? rate.value.toFixed(2)+'%' : '—'; $('tmRate').style.color = 'var(--gold)' }
