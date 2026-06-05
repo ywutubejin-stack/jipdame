@@ -2249,8 +2249,9 @@ async function renderMkt(skipRate = false) {
       else                       data.sort((a,b)=>(b.avgPrice||0)-(a.avgPrice||0))
 
       const avg = data.reduce((s,t)=>s+(t.avgPrice||0),0)/data.length
+      const totalVol = data.reduce((s,t)=>s+(t.count||0),0)
       if($('mAvg'))       $('mAvg').textContent       = fmt(avg)
-      if($('mVol'))       $('mVol').textContent       = tradeRes.count+'건'
+      if($('mVol'))       $('mVol').textContent       = totalVol.toLocaleString()+'건'
       if($('mTotalApts')) $('mTotalApts').textContent = data.length+'개'
 
       if(!tb) return
@@ -2371,8 +2372,9 @@ function renderMktTable(data, sortVal) {
   else                       sorted.sort((a,b)=>(b.avgPrice||0)-(a.avgPrice||0))
 
   const avg = sorted.reduce((s,t)=>s+(t.avgPrice||0),0)/sorted.length
+  const totalCount = sorted.reduce((s,t)=>s+(t.count||0),0)
   if($('mAvg'))       $('mAvg').textContent       = fmt(avg)
-  if($('mVol'))       $('mVol').textContent       = sorted.length+'건'
+  if($('mVol'))       $('mVol').textContent       = totalCount.toLocaleString()+'건'
   if($('mTotalApts')) $('mTotalApts').textContent = sorted.length+'개'
 
   tb.innerHTML = ''
