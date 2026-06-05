@@ -1822,7 +1822,7 @@ function applyTimingData(d) {
     const myAsset   = (state?.asset || 0) * 10000
     const myLoan    = (state?.maxLoan || 0) * 10000
     const myPower   = myAsset + myLoan
-    const myMonthly = state?.monthly || 0
+    const myMonthly = (state?.monthly || 0) * 10000  // 만원 → 원
     const hasCondition = myAsset > 0
 
     // 5년 시뮬레이션
@@ -1831,26 +1831,44 @@ function applyTimingData(d) {
     const aptValueAfter  = myPower * Math.pow(1.04, 5)
     const aptProfit      = aptValueAfter - myPower - totalInterest
     const depositProfit  = myAsset * (Math.pow(1 + (depVal||0)/100, 5) - 1)
-    const stockProfit    = myAsset * (Math.pow(1.07, 5) - 1)
+    // 주식 시뮬레이션 — 실제 1년 수익률 있으면 활용, 없으면 5% 기본값
+    const kospiAnnual = window._stocksData?.kospi?.history ? calcReturn(window._stocksData.kospi.history, 12) : null
+    const stockRate   = kospiAnnual != null ? kospiAnnual/100 : 0.05
+    const stockProfit = myAsset * (Math.pow(1 + stockRate, 5) - 1)
 
-    // 코스피 1년 수익률 계산 (history 활용)
-    const kospiHistory = window._stocksData?.kospi?.history || []
-    const kospi1y = (() => {
-      if(kospiHistory.length < 2) return null
-      const first = kospiHistory[0]?.value
-      const last  = kospiHistory[kospiHistory.length-1]?.value
-      if(!first || !last) return null
-      return Math.round((last/first-1)*1000)/10
-    })()
+    // 실제 수익률 계산 함수
+    const calcReturn = (history, months) => {
+      if(!history?.length) return null
+      const sorted = [...history].filter(h => h.value > 0)
+      if(sorted.length < 2) return null
+      // 최근 N개월치
+      const cutoff = sorted.length - months
+      const startVal = cutoff >= 0 ? sorted[cutoff]?.value : sorted[0]?.value
+      const endVal   = sorted[sorted.length-1]?.value
+      if(!startVal || !endVal) return null
+      return Math.round((endVal/startVal-1)*1000)/10
+    }
 
-    // 비교 항목 (연간 수익률 기준으로 통일)
+    const kospiH  = window._stocksData?.kospi?.history  || []
+    const sp500H  = window._stocksData?.sp500?.history  || []
+
+    const kospi3m  = calcReturn(kospiH, 3)
+    const kospi12m = calcReturn(kospiH, 12)
+    const sp3m     = calcReturn(sp500H, 3)
+    const sp12m    = calcReturn(sp500H, 12)
+
+    const fmtRet = v => v != null ? (v>=0?'+':'')+v.toFixed(1)+'%' : '—'
+    const retColor = v => v == null ? 'var(--muted)' : v >= 0 ? 'var(--up)' : 'var(--down)'
+
+    // 비교 항목
     const compareItems = [
-      { label:'정기예금', val: depVal ? depVal.toFixed(2)+'%' : '—', color:'var(--blue)', pct: Math.min(depVal*8,100), desc:'연 수익률 (원금 보장)' },
+      { label:'정기예금', val: depVal ? depVal.toFixed(2)+'%' : '—', color:'var(--blue)', pct: Math.min(depVal*8,100), desc:'연 수익률 · 원금 보장' },
       { label:'주담대 이자', val: mortVal.toFixed(2)+'%', color:'var(--down)', pct: Math.min(mortVal*8,100), desc:'연 이자 비용' },
-      { label:'코스피 (최근 3개월)', val: kospi1y != null ? (kospi1y>=0?'+':'')+kospi1y+'%' : (kospi?.chg!=null?(kospi.chg>=0?'+':'')+kospi.chg+'%':'—'),
-        color: (kospi1y??kospi?.chg??0) >= 0 ? 'var(--up)' : 'var(--down)',
-        pct: Math.min(Math.abs(kospi1y??kospi?.chg??0)*4, 100), desc:'3개월 수익률 (연환산 아님)' },
-      { label:'부동산 추정', val: '연 4%', color:'var(--gold)', pct: Math.min(4*8,100), desc:'서울 연평균 추정' },
+      { label:'코스피 3개월', val: fmtRet(kospi3m), color: retColor(kospi3m), pct: Math.min(Math.abs(kospi3m||0)*4,100), desc:'실제 수익률' },
+      { label:'코스피 1년', val: fmtRet(kospi12m), color: retColor(kospi12m), pct: Math.min(Math.abs(kospi12m||0)*4,100), desc:'실제 수익률' },
+      { label:'S&P500 3개월', val: fmtRet(sp3m), color: retColor(sp3m), pct: Math.min(Math.abs(sp3m||0)*3,100), desc:'실제 수익률' },
+      { label:'S&P500 1년', val: fmtRet(sp12m), color: retColor(sp12m), pct: Math.min(Math.abs(sp12m||0)*3,100), desc:'실제 수익률' },
+      { label:'부동산 추정', val: '연 4%', color:'var(--gold)', pct: Math.min(4*8,100), desc:'서울 장기 연평균' },
     ]
 
     const loanBurden  = mortVal > 4
@@ -1908,7 +1926,7 @@ function applyTimingData(d) {
               <div style="font-size:13px;font-weight:700;color:var(--up)">+${fmt(stockProfit)}</div>
             </div>
             <div style="font-size:10px;color:var(--muted);line-height:1.7">
-              ${fmt(myAsset)} × 연 7% × 5년 (과거 평균 기준)<br>
+              ${fmt(myAsset)} × 연 ${kospiAnnual!=null?kospiAnnual.toFixed(1)+'% (실제 1년 기준)':'5% (장기 평균 기준)'} × 5년<br>
               변동성 있음. 원금 손실 가능
             </div>
           </div>
