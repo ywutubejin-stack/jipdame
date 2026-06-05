@@ -749,10 +749,11 @@ body{background:#07090f;}
       <div id="aiScoreBars" style="margin-bottom:16px"></div>
 
       <!-- 실거래 시계열 차트 -->
-      <div id="aiChartWrap" style="display:none;margin-bottom:16px">
+      <div id="aiChartWrap" style="margin-bottom:16px">
         <div style="font-size:11px;font-weight:600;color:var(--muted);margin-bottom:8px">📈 최근 실거래 가격 추이</div>
-        <div style="position:relative;height:140px">
-          <canvas id="dtPriceChart"></canvas>
+        <div style="position:relative;height:140px;background:rgba(255,255,255,.03);border-radius:10px;display:flex;align-items:center;justify-content:center" id="chartSkeletonWrap">
+          <canvas id="dtPriceChart" style="display:none"></canvas>
+          <div id="chartSkeleton" style="color:var(--muted);font-size:11px">로딩 중...</div>
         </div>
       </div>
 
@@ -962,6 +963,35 @@ function openSheet(apt, showFavBtn=true) {
 
   // 실거래 내역 — apt.trades 없으면 API 조회
   const renderTrades = (trades) => {
+    // skeleton 숨기기
+    if($('chartSkeleton')) $('chartSkeleton').style.display = 'none'
+    const canvas = $('dtPriceChart')
+    const skWrap = $('chartSkeletonWrap')
+
+    if(trades.length >= 1) {
+      if(canvas) canvas.style.display = 'block'
+      if(skWrap) skWrap.style.cssText = 'position:relative;height:140px'
+      if(canvas) {
+        if(canvas._chart) { canvas._chart.destroy(); canvas._chart = null }
+        const sorted = [...trades].sort((a,b) => (a.date||'').localeCompare(b.date||''))
+        const labels = sorted.map(t => t.date?.slice(2,7)||'')
+        const prices = sorted.map(t => Math.round((t.price||0)/100000000*100)/100)
+        canvas._chart = new Chart(canvas, {
+          type: 'line',
+          data: { labels, datasets: [{ data: prices, borderColor: '#e8c87a', backgroundColor: 'rgba(232,200,122,.08)', borderWidth: 2, pointRadius: 4, pointBackgroundColor: '#e8c87a', fill: true, tension: 0.3 }] },
+          options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } },
+            scales: {
+              x: { ticks: { color: '#888', font: { size: 10 } }, grid: { color: 'rgba(255,255,255,.05)' } },
+              y: { ticks: { color: '#888', font: { size: 10 }, callback: v => v+'억' }, grid: { color: 'rgba(255,255,255,.05)' } }
+            }
+          }
+        })
+      }
+    } else {
+      if(skWrap) skWrap.style.cssText = 'position:relative;height:60px;background:rgba(255,255,255,.03);border-radius:10px;display:flex;align-items:center;justify-content:center'
+      if($('chartSkeleton')) { $('chartSkeleton').style.display = 'block'; $('chartSkeleton').textContent = '실거래 데이터 없음' }
+    }
+
     if($('dtAiText')) {
       $('dtAiText').innerHTML = trades.length
         ? trades.map(t=>`
@@ -976,35 +1006,11 @@ function openSheet(apt, showFavBtn=true) {
             </div>`).join('')
         : '<div style="color:var(--muted);font-size:11px;text-align:center;padding:12px">최근 실거래 없음</div>'
     }
-    // 차트
-    if(trades.length >= 1) {
-      const chartWrap = $('aiChartWrap')
-      if(chartWrap) chartWrap.style.display = 'block'
-      const ctx = $('dtPriceChart')
-      if(ctx) {
-        if(ctx._chart) { ctx._chart.destroy(); ctx._chart = null }
-        const sorted = [...trades].sort((a,b) => (a.date||'').localeCompare(b.date||''))
-        const labels = sorted.map(t => t.date?.slice(2,7)||'')
-        const prices = sorted.map(t => Math.round((t.price||0)/100000000*100)/100)
-        ctx._chart = new Chart(ctx, {
-          type: 'line',
-          data: { labels, datasets: [{ data: prices, borderColor: '#e8c87a', backgroundColor: 'rgba(232,200,122,.08)', borderWidth: 2, pointRadius: 4, pointBackgroundColor: '#e8c87a', fill: true, tension: 0.3 }] },
-          options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } },
-            scales: {
-              x: { ticks: { color: '#888', font: { size: 10 } }, grid: { color: 'rgba(255,255,255,.05)' } },
-              y: { ticks: { color: '#888', font: { size: 10 }, callback: v => v+'억' }, grid: { color: 'rgba(255,255,255,.05)' } }
-            }
-          }
-        })
-      }
-    }
   }
 
   if(apt.trades?.length) {
     renderTrades(apt.trades)
   } else if(apt.sggCd) {
-    // API에서 조회
-    if($('dtAiText')) $('dtAiText').innerHTML = '<div style="color:var(--muted);font-size:11px;text-align:center;padding:12px">실거래 조회 중...</div>'
     fetch(`${PROXY}?type=trade&code=${apt.sggCd}`, {headers:HDR})
       .then(r=>r.json())
       .then(res => {
