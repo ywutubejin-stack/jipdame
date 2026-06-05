@@ -955,23 +955,67 @@ function openSheet(apt, showFavBtn=true) {
       }).catch(()=>{})
   }
 
-  // 실거래 내역
-  const trades = apt.trades||[]
-  if($('dtAiText')) {
-    $('dtAiText').innerHTML = trades.length
-      ? trades.map(t=>`
-          <div style="display:flex;justify-content:space-between;padding:9px 0;border-bottom:1px solid rgba(255,255,255,.04)">
-            <div>
-              <div style="font-size:12px;font-weight:500">매매 · ${Math.round(t.area||0)}㎡ · ${t.floor||'—'}층</div>
-              <div style="font-size:10px;color:var(--muted)">${t.date||''}</div>
-            </div>
-            <div style="text-align:right">
-              <div style="font-size:13px;font-weight:700;color:var(--gold)">${fmt(t.price)}</div>
-            </div>
-          </div>`).join('')
-      : '<div style="padding:12px;font-size:12px;color:var(--muted);text-align:center">실거래 내역 없음</div>'
+  // 실거래 내역 — apt.trades 없으면 API 조회
+  const renderTrades = (trades) => {
+    if($('dtAiText')) {
+      $('dtAiText').innerHTML = trades.length
+        ? trades.map(t=>`
+            <div style="display:flex;justify-content:space-between;padding:9px 0;border-bottom:1px solid rgba(255,255,255,.04)">
+              <div>
+                <div style="font-size:12px;font-weight:500">매매 · ${Math.round(t.area||0)}㎡ · ${t.floor||'—'}층</div>
+                <div style="font-size:10px;color:var(--muted)">${t.date||''}</div>
+              </div>
+              <div style="text-align:right">
+                <div style="font-size:13px;font-weight:700;color:var(--gold)">${fmt(t.price)}</div>
+              </div>
+            </div>`).join('')
+        : '<div style="color:var(--muted);font-size:11px;text-align:center;padding:12px">최근 실거래 없음</div>'
+    }
+    // 차트
+    if(trades.length >= 1) {
+      const chartWrap = $('aiChartWrap')
+      if(chartWrap) chartWrap.style.display = 'block'
+      const ctx = $('dtPriceChart')
+      if(ctx) {
+        if(ctx._chart) { ctx._chart.destroy(); ctx._chart = null }
+        const sorted = [...trades].sort((a,b) => (a.date||'').localeCompare(b.date||''))
+        const labels = sorted.map(t => t.date?.slice(2,7)||'')
+        const prices = sorted.map(t => Math.round((t.price||0)/100000000*100)/100)
+        ctx._chart = new Chart(ctx, {
+          type: 'line',
+          data: { labels, datasets: [{ data: prices, borderColor: '#e8c87a', backgroundColor: 'rgba(232,200,122,.08)', borderWidth: 2, pointRadius: 4, pointBackgroundColor: '#e8c87a', fill: true, tension: 0.3 }] },
+          options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } },
+            scales: {
+              x: { ticks: { color: '#888', font: { size: 10 } }, grid: { color: 'rgba(255,255,255,.05)' } },
+              y: { ticks: { color: '#888', font: { size: 10 }, callback: v => v+'억' }, grid: { color: 'rgba(255,255,255,.05)' } }
+            }
+          }
+        })
+      }
+    }
   }
 
+  if(apt.trades?.length) {
+    renderTrades(apt.trades)
+  } else if(apt.sggCd) {
+    // API에서 조회
+    if($('dtAiText')) $('dtAiText').innerHTML = '<div style="color:var(--muted);font-size:11px;text-align:center;padding:12px">실거래 조회 중...</div>'
+    fetch(`${PROXY}?type=trade&code=${apt.sggCd}`, {headers:HDR})
+      .then(r=>r.json())
+      .then(res => {
+        if(!res.ok) return
+        const matched = (res.data||[]).filter(a => a.name === apt.name)
+        const trades = matched.length ? matched[0].trades||[] : []
+        renderTrades(trades)
+        if(matched.length) {
+          curApt = {...curApt, ...matched[0]}
+          // 전세가율 업데이트
+          if(matched[0].jeonseRatio > 0 && $('dtJsr')) {
+            $('dtJsr').textContent = matched[0].jeonseRatio+'%'
+          }
+        }
+      }).catch(()=>{})
+  }
   // 대출 계산
   calcLoanForSheet(apt)
   runAiAnalysis(apt)
@@ -1161,49 +1205,6 @@ function runAiAnalysis(apt) {
       </div>`
   }
 
-  // 실거래 시계열 차트
-  const trades = apt.trades || []
-  if(trades.length >= 1) {
-    const chartWrap = $('aiChartWrap')
-    if(chartWrap) chartWrap.style.display = 'block'
-    const ctx = $('dtPriceChart')
-    if(ctx) {
-      // 기존 차트 제거
-      if(ctx._chart) { ctx._chart.destroy(); ctx._chart = null }
-      const sorted = [...trades].sort((a,b) => a.date?.localeCompare(b.date||'')||0)
-      const labels = sorted.map(t => t.date?.slice(2,7)||'')
-      const prices = sorted.map(t => Math.round((t.price||0)/100000000*100)/100) // 억 단위
-
-      ctx._chart = new Chart(ctx, {
-        type: 'line',
-        data: {
-          labels,
-          datasets: [{
-            data: prices,
-            borderColor: '#e8c87a',
-            backgroundColor: 'rgba(232,200,122,.08)',
-            borderWidth: 2,
-            pointRadius: 4,
-            pointBackgroundColor: '#e8c87a',
-            fill: true,
-            tension: 0.3,
-          }]
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          plugins: { legend: { display: false } },
-          scales: {
-            x: { ticks: { color: '#888', font: { size: 10 } }, grid: { color: 'rgba(255,255,255,.05)' } },
-            y: {
-              ticks: { color: '#888', font: { size: 10 }, callback: v => v+'억' },
-              grid: { color: 'rgba(255,255,255,.05)' }
-            }
-          }
-        }
-      })
-    }
-  }
 }
 
 function closeSheet() {
