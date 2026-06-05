@@ -2276,6 +2276,11 @@ async function loadHighlights() {
           avgPrice: t.price,
           sigungu: t.dong || '',
         }, false))
+        el.appendChild(div)
+      })
+    }
+
+    renderList(data.newHighs, $('mktHighList'), true)
     renderList(data.newLows,  $('mktLowList'),  false)
 
     // 최근 7일 신고 거래
