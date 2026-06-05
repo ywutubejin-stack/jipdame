@@ -2207,8 +2207,15 @@ async function renderMkt(skipRate = false) {
     }
     const yms = getYMs(ymFrom, ymTo)
     const baseUrl = sidoVal === 'sido' ? `${PROXY}?type=trade&sido=서울` : `${PROXY}?type=trade&code=${sidoVal}`
-    const tradePromises = yms.map(ym => fetch(`${baseUrl}&ym=${ym}`,{headers:HDR}).then(r=>r.json()).catch(()=>({ok:false,data:[]})))
-    promises.push(Promise.all(tradePromises).then(results => {
+    const tradeResults = []
+    for(const ym of yms) {
+      try {
+        const res = await fetch(`${baseUrl}&ym=${ym}`, {headers:HDR}).then(r=>r.json())
+        tradeResults.push(res)
+      } catch(e) { tradeResults.push({ok:false,data:[]}) }
+    }
+    promises.push(Promise.resolve((() => {
+      const results = tradeResults
       // 여러 달 데이터 합산
       const allData = results.filter(r=>r.ok&&r.data).flatMap(r=>r.data)
       // 단지명으로 그룹핑 후 평균가 계산
@@ -2226,7 +2233,7 @@ async function renderMkt(skipRate = false) {
         count: apt.count
       }))
       return { ok: true, data: merged, count: merged.length }
-    }))
+    })()))
 
     const results = await Promise.all(promises)
     const rateRes  = skipRate ? null : results[0]
