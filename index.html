@@ -1840,10 +1840,10 @@ function applyTimingData(d) {
     const kospiH  = window._stocksData?.kospi?.history  || []
     const sp500H  = window._stocksData?.sp500?.history  || []
 
-    const kospi3m  = calcReturn(kospiH, 3)
-    const kospi12m = calcReturn(kospiH, 12)
-    const sp3m     = calcReturn(sp500H, 3)
-    const sp12m    = calcReturn(sp500H, 12)
+    const kospi3m  = calcReturn(kospiH, 60)   // 약 3개월 거래일
+    const kospi12m = calcReturn(kospiH, 240)  // 약 1년 거래일
+    const sp3m     = calcReturn(sp500H, 60)
+    const sp12m    = calcReturn(sp500H, 240)
 
     // 5년 시뮬레이션
     const months = 60
