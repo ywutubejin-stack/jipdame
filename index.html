@@ -2195,6 +2195,8 @@ async function renderMkt(skipRate = false) {
     renderMktTable(mktDataCache, sortVal)
     return
   }
+  // 범위 바뀌면 캐시 초기화
+  if(lastRange !== rangeNow || lastSido !== sidoVal) mktDataCache = []
 
   if(tb) tb.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:20px;color:var(--muted);font-size:12px">로딩 중...</td></tr>'
 
