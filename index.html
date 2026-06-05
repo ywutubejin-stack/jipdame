@@ -2399,7 +2399,7 @@ function initChips() {
 }
 
 /* ── 초기화 ── */
-window.addEventListener('DOMContentLoaded', () => {
+function initApp() {
   // 슬라이더 ↔ 입력칸 동기화
   const sl = { asset:$('sl-asset'), income:$('sl-income'), rate:$('sl-rate') }
   const inp = { asset:$('in-asset'), income:$('in-income'), rate:$('in-rate') }
@@ -2514,6 +2514,13 @@ window.addEventListener('DOMContentLoaded', () => {
 
   if('serviceWorker' in navigator)
     navigator.serviceWorker.register('sw.js').catch(()=>{})
-})
+}
+
+// DOM이 이미 로드됐으면 바로, 아니면 대기
+if(document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initApp)
+} else {
+  initApp()
+}
 </script>
 </body>
