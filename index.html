@@ -1163,7 +1163,7 @@ function runAiAnalysis(apt) {
 
   // 실거래 시계열 차트
   const trades = apt.trades || []
-  if(trades.length >= 2) {
+  if(trades.length >= 1) {
     const chartWrap = $('aiChartWrap')
     if(chartWrap) chartWrap.style.display = 'block'
     const ctx = $('dtPriceChart')
