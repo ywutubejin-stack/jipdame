@@ -720,7 +720,7 @@ body{background:#07090f;}
       <div class="stat-card"><div class="stat-label">세대수</div><div class="stat-val" id="dtHouses">—</div></div>
       <div class="stat-card"><div class="stat-label">동수</div><div class="stat-val" id="dtDongCnt">—</div></div>
       <div class="stat-card"><div class="stat-label">최고층</div><div class="stat-val" id="dtFloor">—</div></div>
-      <div class="stat-card"><div class="stat-label">난방방식</div><div class="stat-val" id="dtHeat">—</div></div>
+      <div class="stat-card"><div class="stat-label">전세가율</div><div class="stat-val" id="dtJsr" style="color:var(--up)">—</div></div>
       <div class="stat-card"><div class="stat-label">집담 점수</div><div class="stat-val" id="dtScore" style="color:var(--gold)">—</div></div>
     </div>
     
@@ -937,6 +937,11 @@ function openSheet(apt, showFavBtn=true) {
   if($('dtFloor'))     $('dtFloor').textContent     = '—'
   if($('dtHeat'))      $('dtHeat').textContent      = '—'
   if($('dtScore')) { const s = apt._score || calcAptScore(apt); $('dtScore').textContent = s+'점'; $('dtScore').style.color = s>=80?'var(--up)':s>=60?'var(--gold)':'var(--muted)' }
+  if($('dtJsr')) {
+    const jsr = apt.jeonseRatio || 0
+    $('dtJsr').textContent = jsr > 0 ? jsr+'%' : '—'
+    $('dtJsr').style.color = jsr>=60?'var(--up)':jsr>=40?'var(--gold)':'var(--muted)'
+  }
 
   // 단지 기본정보 API 조회
   if(apt.sggCd && apt.name) {
