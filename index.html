@@ -587,8 +587,9 @@ body{background:#07090f;}
       <div id="tmUsdDate" style="font-size:9px;color:var(--muted);margin-top:3px"></div>
     </div>
     <div class="card" style="padding:12px">
-      <div style="font-size:10px;color:var(--muted);margin-bottom:4px">💰 M2 통화량(YoY)</div>
-      <div id="tmM2" style="font-size:20px;font-weight:700">—</div>
+      <div style="font-size:10px;color:var(--muted);margin-bottom:4px">💰 M2 통화량</div>
+      <div id="tmM2Abs" style="font-size:14px;font-weight:700;color:var(--text)">—</div>
+      <div id="tmM2" style="font-size:13px;font-weight:600;margin-top:2px">—</div>
       <div id="tmM2Trend" style="font-size:10px;margin-top:2px"></div>
       <div id="tmM2Date" style="font-size:9px;color:var(--muted);margin-top:3px"></div>
     </div>
@@ -1627,9 +1628,16 @@ function applyTimingData(d) {
   if($('tmMortgage')){ $('tmMortgage').textContent = mort?.value ? mort.value.toFixed(2)+'%' : '—'; $('tmMortgage').style.color='var(--down)' }
   if($('tmMortgageDate')) $('tmMortgageDate').textContent = fmtDate(mort?.time)
   if($('tmMortgageTrend')) $('tmMortgageTrend').innerHTML = trend(mort, prev(d.mortgageRate), '%p', '전월비')
-  if($('tmM2'))      { $('tmM2').textContent = m2?.value ? m2.value.toFixed(1)+'%' : '—'; $('tmM2').style.color = m2?.value>10?'var(--up)':m2?.value>5?'var(--gold)':'var(--muted)' }
-  if($('tmM2Date'))    $('tmM2Date').textContent    = fmtDate(m2?.time)
-  if($('tmM2Trend'))    $('tmM2Trend').innerHTML    = trend(m2, prev(d.m2), '%p', '전월비')
+  if($('tmM2Abs')) {
+    const m2Ks = d.ks?.m2
+    if(m2Ks?.value) $('tmM2Abs').textContent = Math.round(m2Ks.value/1000000).toLocaleString()+'조원'
+  }
+  if($('tmM2'))    {
+    if(m2?.value != null) { $('tmM2').textContent = '전년비 '+m2.value.toFixed(1)+'%'; $('tmM2').style.color = m2.value>8?'var(--up)':m2.value>4?'var(--gold)':'var(--muted)' }
+    else $('tmM2').textContent = '—'
+  }
+  if($('tmM2Date'))    $('tmM2Date').textContent    = fmtDate(m2?.time || d.ks?.m2?.time)
+  if($('tmM2Trend'))    $('tmM2Trend').innerHTML    = m2?.value != null ? trend(m2, prev(d.m2), '%p', '전월비') : ''
 
   // ── 종합 점수 계산 ──
   // 항목별 만점 정의 (합계 100점)
