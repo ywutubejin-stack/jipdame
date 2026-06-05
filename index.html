@@ -1833,12 +1833,24 @@ function applyTimingData(d) {
     const depositProfit  = myAsset * (Math.pow(1 + (depVal||0)/100, 5) - 1)
     const stockProfit    = myAsset * (Math.pow(1.07, 5) - 1)
 
-    // 비교 항목
+    // 코스피 1년 수익률 계산 (history 활용)
+    const kospiHistory = window._stocksData?.kospi?.history || []
+    const kospi1y = (() => {
+      if(kospiHistory.length < 2) return null
+      const first = kospiHistory[0]?.value
+      const last  = kospiHistory[kospiHistory.length-1]?.value
+      if(!first || !last) return null
+      return Math.round((last/first-1)*1000)/10
+    })()
+
+    // 비교 항목 (연간 수익률 기준으로 통일)
     const compareItems = [
-      { label:'정기예금', val: depVal ? depVal.toFixed(2)+'%' : '—', color:'var(--blue)', pct: Math.min(depVal*10,100), desc:'원금 보장 안전자산' },
-      { label:'주담대 이자', val: mortVal.toFixed(2)+'%', color:'var(--down)', pct: Math.min(mortVal*10,100), desc:'대출 시 매월 부담' },
-      { label:'코스피 등락', val: kospi?.chg != null ? (kospi.chg>=0?'+':'')+kospi.chg+'%' : '—',
-        color: kospi?.chg >= 0 ? 'var(--up)' : 'var(--down)', pct: Math.min(Math.abs(kospi?.chg||0)*5,100), desc:'전일 등락률' },
+      { label:'정기예금', val: depVal ? depVal.toFixed(2)+'%' : '—', color:'var(--blue)', pct: Math.min(depVal*8,100), desc:'연 수익률 (원금 보장)' },
+      { label:'주담대 이자', val: mortVal.toFixed(2)+'%', color:'var(--down)', pct: Math.min(mortVal*8,100), desc:'연 이자 비용' },
+      { label:'코스피 (최근 3개월)', val: kospi1y != null ? (kospi1y>=0?'+':'')+kospi1y+'%' : (kospi?.chg!=null?(kospi.chg>=0?'+':'')+kospi.chg+'%':'—'),
+        color: (kospi1y??kospi?.chg??0) >= 0 ? 'var(--up)' : 'var(--down)',
+        pct: Math.min(Math.abs(kospi1y??kospi?.chg??0)*4, 100), desc:'3개월 수익률 (연환산 아님)' },
+      { label:'부동산 추정', val: '연 4%', color:'var(--gold)', pct: Math.min(4*8,100), desc:'서울 연평균 추정' },
     ]
 
     const loanBurden  = mortVal > 4
