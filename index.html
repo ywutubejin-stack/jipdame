@@ -1685,7 +1685,7 @@ function applyTimingData(d) {
 
   // M2 통화량 (15점 만점)
   if(!m2) { scoreReasons.push({icon:'💰', title:'M2 통화량 — 데이터 없음', detail:'M2 통화량 데이터를 가져오지 못했어요.', good:null, pts:0, max:15}) }
-  if(m2) {
+  if(m2 && m2.value != null) {
     const v = m2.value
     const pts = v>=7 ? 15 : v>=5 ? 12 : v>=3 ? 8 : v>=1 ? 4 : 0
     score += pts
