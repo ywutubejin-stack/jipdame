@@ -992,8 +992,9 @@ function openSheet(apt, showFavBtn=true) {
       if($('chartSkeleton')) { $('chartSkeleton').style.display = 'block'; $('chartSkeleton').textContent = '실거래 데이터 없음' }
     }
 
+    const rentTrades = apt.rentTrades || []
     if($('dtAiText')) {
-      $('dtAiText').innerHTML = trades.length
+      const buyHtml = trades.length
         ? trades.map(t=>`
             <div style="display:flex;justify-content:space-between;padding:9px 0;border-bottom:1px solid rgba(255,255,255,.04)">
               <div>
@@ -1005,6 +1006,26 @@ function openSheet(apt, showFavBtn=true) {
               </div>
             </div>`).join('')
         : '<div style="color:var(--muted);font-size:11px;text-align:center;padding:12px">최근 실거래 없음</div>'
+
+      const rentHtml = rentTrades.length
+        ? rentTrades.map(t=>`
+            <div style="display:flex;justify-content:space-between;padding:9px 0;border-bottom:1px solid rgba(255,255,255,.04)">
+              <div>
+                <div style="font-size:12px;font-weight:500">전세 · ${Math.round(t.area||0)}㎡</div>
+              </div>
+              <div style="text-align:right">
+                <div style="font-size:13px;font-weight:700;color:var(--blue)">${fmt(t.deposit)}</div>
+              </div>
+            </div>`).join('')
+        : '<div style="color:var(--muted);font-size:11px;text-align:center;padding:12px">최근 전세 거래 없음</div>'
+
+      $('dtAiText').innerHTML = `
+        <div style="display:flex;gap:0;margin-bottom:10px;border-bottom:1px solid rgba(255,255,255,.08)">
+          <button onclick="this.parentElement.querySelectorAll('button').forEach(b=>b.style.color='var(--muted)');this.style.color='var(--gold)';document.getElementById('tradeTabBuy').style.display='block';document.getElementById('tradeTabRent').style.display='none'" style="flex:1;padding:8px;background:none;border:none;color:var(--gold);font-size:12px;font-weight:600;cursor:pointer;border-bottom:2px solid var(--gold)">매매 ${trades.length}건</button>
+          <button onclick="this.parentElement.querySelectorAll('button').forEach(b=>{b.style.color='var(--muted)';b.style.borderBottom='none'});this.style.color='var(--blue)';this.style.borderBottom='2px solid var(--blue)';document.getElementById('tradeTabBuy').style.display='none';document.getElementById('tradeTabRent').style.display='block'" style="flex:1;padding:8px;background:none;border:none;color:var(--muted);font-size:12px;font-weight:600;cursor:pointer">전세 ${rentTrades.length}건</button>
+        </div>
+        <div id="tradeTabBuy">${buyHtml}</div>
+        <div id="tradeTabRent" style="display:none">${rentHtml}</div>`
     }
   }
 
