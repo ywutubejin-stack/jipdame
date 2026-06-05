@@ -963,7 +963,7 @@ function openSheet(apt, showFavBtn=true) {
   }
 
   // 실거래 내역 — apt.trades 없으면 API 조회
-  const renderTrades = (trades) => {
+  const renderTrades = (trades, rentTrades) => {
     // skeleton 숨기기
     if($('chartSkeleton')) $('chartSkeleton').style.display = 'none'
     const canvas = $('dtPriceChart')
@@ -993,7 +993,7 @@ function openSheet(apt, showFavBtn=true) {
       if($('chartSkeleton')) { $('chartSkeleton').style.display = 'block'; $('chartSkeleton').textContent = '실거래 데이터 없음' }
     }
 
-    const rentTrades = apt.rentTrades || []
+    rentTrades = rentTrades || apt.rentTrades || []
     if($('dtTradeList')) {
       const buyHtml = trades.length
         ? trades.map(t=>`
@@ -1030,6 +1030,24 @@ function openSheet(apt, showFavBtn=true) {
 
   if(apt.trades?.length) {
     renderTrades(apt.trades)
+    // 전세 별도 조회
+    if(apt.sggCd && !apt.rentTrades?.length) {
+      fetch(`${PROXY}?type=rent&code=${apt.sggCd}`, {headers:HDR})
+        .then(r=>r.json())
+        .then(res => {
+          if(!res.ok) return
+          const normName = n => n?.replace(/\s+/g,'').replace(/아파트$|APT$|apt$/,'').replace(/\(.*?\)/g,'').replace(/[^\w가-힣]/g,'').toLowerCase()||''
+          const keys = [apt.sggCd+'_'+apt.name, apt.sggCd+'_'+normName(apt.name), apt.name, normName(apt.name)]
+          let rentInfo = null
+          for(const k of keys) { if(res.data[k]) { rentInfo = res.data[k]; break } }
+          if(rentInfo && apt.avgPrice > 0) {
+            const jsr = Math.round(rentInfo.avgDeposit / apt.avgPrice * 100)
+            if($('dtJsr')) { $('dtJsr').textContent = jsr+'%'; $('dtJsr').style.color = jsr>=60?'var(--up)':jsr>=40?'var(--gold)':'var(--muted)' }
+            curApt = {...curApt, jeonseRatio: jsr, rentTrades: rentInfo.trades}
+            renderTrades([...apt.trades], rentInfo.trades)
+          }
+        }).catch(()=>{})
+    }
   } else if(apt.sggCd) {
     fetch(`${PROXY}?type=trade&code=${apt.sggCd}`, {headers:HDR})
       .then(r=>r.json())
