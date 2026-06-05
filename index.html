@@ -26,7 +26,7 @@
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
 html,body{height:100%;overflow:hidden;}
 body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:14px;}
-#app{display:flex;flex-direction:column;height:100vh;height:100dvh;max-width:430px;margin:0 auto;position:relative;}
+#app{display:flex;flex-direction:column;height:100vh;height:100dvh;max-width:430px;margin:0 auto;position:relative;} @media(min-width:768px){#app{max-width:768px;}} @media(min-width:1200px){#app{max-width:960px;}} @media(min-width:768px){#app{max-width:768px;}} @media(min-width:1200px){#app{max-width:960px;}}
 body{background:#07090f;}
 
 /* ── topbar ── */
@@ -130,7 +130,7 @@ body{background:#07090f;}
 .ms-edit{font-size:11px;color:var(--blue);cursor:pointer;border:none;background:none;font-family:var(--sans);}
 
 /* 필터 바 */
-.filter-row{display:flex;gap:6px;overflow-x:auto;padding-bottom:4px;margin-bottom:14px;}
+.filter-row{display:flex;gap:6px;overflow-x:auto;padding-bottom:4px;margin-bottom:14px;scrollbar-width:none;-ms-overflow-style:none;} .filter-row::-webkit-scrollbar{display:none;}
 .filter-row::-webkit-scrollbar{display:none;}
 .fc{padding:5px 12px;border-radius:20px;font-size:11px;cursor:pointer;white-space:nowrap;border:1px solid var(--border);color:var(--muted);background:none;font-family:var(--sans);transition:all .2s;flex-shrink:0;}
 .fc.on{border-color:rgba(232,200,122,.4);color:var(--gold);background:rgba(232,200,122,.08);}
@@ -161,7 +161,7 @@ body{background:#07090f;}
 /* ── 단지 상세 시트 ── */
 .overlay{position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:100;opacity:0;pointer-events:none;transition:opacity .25s;}
 .overlay.open{opacity:1;pointer-events:all;}
-.sheet{position:fixed;bottom:0;left:50%;transform:translateX(-50%) translateY(100%);width:100%;max-width:430px;background:var(--bg2);border-radius:20px 20px 0 0;z-index:101;transition:transform .32s cubic-bezier(.32,.72,0,1);max-height:90vh;overflow-y:auto;padding-bottom:calc(24px + var(--safe-b));}
+.sheet{position:fixed;bottom:0;left:50%;transform:translateX(-50%) translateY(100%);width:100%;max-width:min(430px, 100%);background:var(--bg2);border-radius:20px 20px 0 0;z-index:101;transition:transform .32s cubic-bezier(.32,.72,0,1);max-height:90vh;overflow-y:auto;padding-bottom:calc(24px + var(--safe-b));}
 .sheet.open{transform:translateX(-50%) translateY(0);}
 .sheet-handle{width:36px;height:4px;background:var(--border2);border-radius:2px;margin:14px auto 0;}
 
@@ -235,6 +235,13 @@ body{background:#07090f;}
 .sr-name{font-size:13px;font-weight:500;}
 .sr-sub{font-size:11px;color:var(--muted);margin-top:2px;}
 .sr-price{font-size:14px;font-weight:700;color:var(--gold);}
+
+@media(min-width:768px){
+  .mkt-page,.rec-page,.home-page,.fav-page,.timing-page{padding:20px 24px;}
+  .rc-stats{grid-template-columns:repeat(4,1fr);}
+  .metrics{grid-template-columns:repeat(3,1fr);}
+  .power-breakdown{grid-template-columns:repeat(4,1fr);}
+}
 </style>
 </head>
 <body>
@@ -1211,6 +1218,12 @@ function toggleFav() {
   saveFavs(); updateFavBtn()
   if(document.getElementById('page-fav')?.classList.contains('active')) renderFavs()
 }
+function removeFav(name) {
+  state.favorites = state.favorites.filter(f => f.name !== name)
+  saveFavs()
+  renderFavs()
+}
+
 function renderFavs() {
   const el = $('favList'); if(!el) return
   if(!state.favorites.length) {
@@ -1220,8 +1233,15 @@ function renderFavs() {
   el.innerHTML = ''
   state.favorites.forEach(f=>{
     const d=document.createElement('div'); d.className='fav-item'
-    d.innerHTML=`<div class="fi-header"><div><div class="fi-name">${f.name}</div><div class="fi-loc">${f.dong||''}</div></div><div><div class="fi-price">${fmt(f.avgPrice||f.price||0)}</div></div></div>`
-    d.addEventListener('click',()=>openSheet(f))
+    d.innerHTML=`
+      <div class="fi-header" style="align-items:center">
+        <div style="flex:1;cursor:pointer">
+          <div class="fi-name">${f.name}</div>
+          <div class="fi-loc">${f.dong||''} · ${fmt(f.avgPrice||0)}</div>
+        </div>
+        <button onclick="event.stopPropagation();removeFav('${f.name}')" style="background:rgba(248,113,113,.12);border:1px solid rgba(248,113,113,.3);color:var(--down);border-radius:8px;padding:6px 10px;font-size:11px;cursor:pointer;flex-shrink:0">삭제</button>
+      </div>`
+    d.querySelector('.fi-header > div')?.addEventListener('click',()=>openSheet(f))
     el.appendChild(d)
   })
 }
