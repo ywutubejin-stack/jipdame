@@ -2240,7 +2240,7 @@ async function renderMkt(skipRate = false) {
       const aptMap = new Map()
       allData.forEach(apt => {
         const key = apt.sggCd + '_' + apt.name
-        if(!aptMap.has(key)) aptMap.set(key, {...apt, _prices:[]})
+        if(!aptMap.has(key)) aptMap.set(key, {...apt, _prices:[], count:0})
         aptMap.get(key)._prices.push(apt.avgPrice)
         aptMap.get(key).count = (aptMap.get(key).count||0) + (apt.count||0)
         aptMap.get(key).jeonseRatio = apt.jeonseRatio || aptMap.get(key).jeonseRatio
