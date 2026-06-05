@@ -697,9 +697,14 @@ body{background:#07090f;}
   </button>
 </div>
 
-</div><div class="overlay" id="sheetOverlay" id="sheetOverlay"></div>
+</div>
+<button id="toTop" onclick="$('scrollEl')?.scrollTo({top:0,behavior:'smooth'})">↑</button>
+<div class="overlay" id="sheetOverlay"></div>
 <div class="sheet" id="detailSheet">
   <div class="sheet-handle"></div>
+  <div style="position:absolute;top:12px;right:16px;z-index:10">
+    <button onclick="closeSheet()" style="background:rgba(255,255,255,.08);border:none;color:var(--muted);width:32px;height:32px;border-radius:50%;font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center">✕</button>
+  </div>
   <div class="det-header">
     <div class="det-verdict score-buy" id="dtVerdict">매수 적격 진단</div>
     <div class="det-name" id="dtName">—</div>
@@ -918,8 +923,11 @@ function onSearch(v) {
 
 /* ── 단지 시트 ── */
 let curApt = null
-function openSheet(apt) {
+function openSheet(apt, showFavBtn=true) {
   curApt = apt
+  // 관심단지 버튼 표시 여부
+  const favBtn = $('favBtnEl')
+  if(favBtn) favBtn.style.display = showFavBtn ? 'block' : 'none'
   if($('dtName'))  $('dtName').textContent  = apt.name
   if($('dtLoc'))   $('dtLoc').textContent   = apt.dong || apt.sigungu || ''
   if($('dtPrice')) $('dtPrice').textContent = fmt(apt.avgPrice||apt.price||0)
@@ -970,6 +978,8 @@ function openSheet(apt) {
   updateFavBtn()
   $('sheetOverlay')?.classList.add('open')
   $('detailSheet')?.classList.add('open')
+  $('detailSheet') && ($('detailSheet').scrollTop=0)
+  history.pushState({sheet: true}, '')
   $('detailSheet') && ($('detailSheet').scrollTop=0)
 }
 
@@ -1199,6 +1209,7 @@ function runAiAnalysis(apt) {
 function closeSheet() {
   $('sheetOverlay')?.classList.remove('open')
   $('detailSheet')?.classList.remove('open')
+  if(history.state?.sheet) history.back()
 }
 
 /* ── 즐겨찾기 ── */
@@ -2224,7 +2235,7 @@ async function renderMkt(skipRate = false) {
           <td style="text-align:right;padding:8px 4px"><strong style="color:var(--gold)">${fmt(t.avgPrice)}</strong></td>
           <td style="text-align:right;padding:8px 4px;font-size:11px;color:${jsr>=60?'var(--up)':jsr>=40?'var(--gold)':'var(--muted)'}">${jsr>0?jsr+'%':'—'}</td>
           <td style="text-align:right;padding:8px 4px;font-size:11px;color:var(--muted)">${t.count}건</td>`
-        tr.addEventListener('click', ()=>openSheet(t))
+        tr.addEventListener('click', ()=>openSheet(t, false))
         tb.appendChild(tr)
       })
     }
@@ -2243,8 +2254,11 @@ async function loadHighlights() {
     const renderList = (items, el, isHigh) => {
       if(!el) return
       if(!items.length) { el.innerHTML='<div style="color:var(--muted);font-size:11px;text-align:center;padding:8px">데이터 없음</div>'; return }
-      el.innerHTML = items.map(t => `
-        <div style="padding:7px 0;border-bottom:1px solid rgba(255,255,255,.04);cursor:pointer" onclick="">
+      el.innerHTML = ''
+      items.forEach(t => {
+        const div = document.createElement('div')
+        div.style.cssText = 'padding:8px 0;border-bottom:1px solid rgba(255,255,255,.04);cursor:pointer'
+        div.innerHTML = `
           <div style="display:flex;justify-content:space-between;align-items:center">
             <div>
               <div style="font-size:11px;font-weight:600">${t.name}</div>
@@ -2256,11 +2270,12 @@ async function loadHighlights() {
                 ${isHigh?'▲':'▼'} ${Math.abs(t.chgPct)}%
               </div>
             </div>
-          </div>
-        </div>`).join('')
-    }
-
-    renderList(data.newHighs, $('mktHighList'), true)
+          </div>`
+        div.addEventListener('click', () => openSheet({
+          ...t,
+          avgPrice: t.price,
+          sigungu: t.dong || '',
+        }, false))
     renderList(data.newLows,  $('mktLowList'),  false)
 
     // 최근 7일 신고 거래
@@ -2270,8 +2285,11 @@ async function loadHighlights() {
       if(!trades.length) {
         recentEl.innerHTML = '<div style="color:var(--muted);font-size:11px;text-align:center;padding:20px">최근 7일 신고 거래 없음</div>'
       } else {
-        recentEl.innerHTML = trades.map(t => `
-          <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 14px;border-bottom:1px solid rgba(255,255,255,.04);cursor:pointer">
+        recentEl.innerHTML = ''
+        trades.forEach(t => {
+          const div = document.createElement('div')
+          div.style.cssText = 'display:flex;justify-content:space-between;align-items:center;padding:10px 14px;border-bottom:1px solid rgba(255,255,255,.04);cursor:pointer'
+          div.innerHTML = `
             <div>
               <div style="font-size:12px;font-weight:600">${t.name}</div>
               <div style="font-size:10px;color:var(--muted)">${t.dong||''} · ${Math.round(t.area||0)}㎡ · ${t.floor||''}층</div>
@@ -2279,8 +2297,13 @@ async function loadHighlights() {
             </div>
             <div style="text-align:right;flex-shrink:0;margin-left:8px">
               <div style="font-size:14px;font-weight:700;color:var(--gold)">${fmt(t.price)}</div>
-            </div>
-          </div>`).join('')
+            </div>`
+          div.addEventListener('click', () => openSheet({
+            ...t,
+            avgPrice: t.price,
+            sigungu: t.dong || '',
+          }, false))
+        })
       }
     }
   } catch(e) { console.warn('신고가/신저가 오류:', e) }
@@ -2327,7 +2350,7 @@ function renderMktTable(data, sortVal) {
       <td style="text-align:right;padding:8px 4px"><strong style="color:var(--gold)">${fmt(t.avgPrice)}</strong></td>
       <td style="text-align:right;padding:8px 4px;font-size:11px;color:${jsr>=60?'var(--up)':jsr>=40?'var(--gold)':'var(--muted)'}">${jsr>0?jsr+'%':'—'}</td>
       <td style="text-align:right;padding:8px 4px;font-size:11px;color:var(--muted)">${t.count}건</td>`
-    tr.addEventListener('click', ()=>openSheet(t))
+    tr.addEventListener('click', ()=>openSheet(t, false))
     tb.appendChild(tr)
   })
 }
@@ -2429,6 +2452,12 @@ window.addEventListener('DOMContentLoaded', () => {
   $('searchToggle')?.addEventListener('click', toggleSearch)
   $('sClearBtn')   ?.addEventListener('click', clearSearch)
   $('sheetOverlay')?.addEventListener('click', closeSheet)
+  window.addEventListener('popstate', (e) => {
+    if($('detailSheet')?.classList.contains('open')) {
+      $('sheetOverlay')?.classList.remove('open')
+      $('detailSheet')?.classList.remove('open')
+    }
+  })
   $('favBtnEl')    ?.addEventListener('click', toggleFav)
   $('sInput')      ?.addEventListener('input', function(){ onSearch(this.value) })
   $('dInc')        ?.addEventListener('input', ()=>curApt&&calcLoanForSheet(curApt))
