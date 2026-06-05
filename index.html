@@ -1012,11 +1012,11 @@ function openSheet(apt, showFavBtn=true) {
         const matched = (res.data||[]).filter(a => a.name === apt.name)
         const trades = matched.length ? matched[0].trades||[] : []
         renderTrades(trades)
-        if(matched.length) {
+        if(matched.length && matched[0].jeonseRatio > 0) {
           curApt = {...curApt, ...matched[0]}
-          // 전세가율 업데이트
-          if(matched[0].jeonseRatio > 0 && $('dtJsr')) {
+          if($('dtJsr')) {
             $('dtJsr').textContent = matched[0].jeonseRatio+'%'
+            $('dtJsr').style.color = matched[0].jeonseRatio>=60?'var(--up)':matched[0].jeonseRatio>=40?'var(--gold)':'var(--muted)'
           }
         }
       }).catch(()=>{})
