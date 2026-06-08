@@ -928,17 +928,15 @@ function onSearch(v) {
 let curApt = null
 function openSheet(apt, showFavBtn=true) {
   curApt = apt
-  // 관심단지 버튼 표시 여부
   const favBtn = $('favBtnEl')
   if(favBtn) favBtn.style.display = showFavBtn ? 'block' : 'none'
   if($('dtName'))  $('dtName').textContent  = apt.name
   if($('dtLoc'))   $('dtLoc').textContent   = apt.dong || apt.sigungu || ''
-  if($('dtPrice')) $('dtPrice').textContent = fmt(apt.avgPrice||apt.price||0)
+  if($('dtPrice')) $('dtPrice').textContent = (apt.avgPrice||apt.price) ? fmt(apt.avgPrice||apt.price) : '조회 중...'
   if($('dtBuildYear')) $('dtBuildYear').textContent = apt.built ? apt.built+'년' : '—'
   if($('dtHouses'))    $('dtHouses').textContent    = apt.houses ? apt.houses.toLocaleString()+'세대' : '—'
   if($('dtDongCnt'))   $('dtDongCnt').textContent   = apt.dong_cnt ? apt.dong_cnt+'개 동' : '—'
   if($('dtFloor'))     $('dtFloor').textContent     = '—'
-  if($('dtHeat'))      $('dtHeat').textContent      = '—'
   if($('dtScore')) { const s = apt._score || calcAptScore(apt); $('dtScore').textContent = s+'점'; $('dtScore').style.color = s>=80?'var(--up)':s>=60?'var(--gold)':'var(--muted)' }
   if($('dtJsr')) {
     const jsr = apt.jeonseRatio || 0
@@ -946,179 +944,99 @@ function openSheet(apt, showFavBtn=true) {
     $('dtJsr').style.color = jsr>=60?'var(--up)':jsr>=40?'var(--gold)':'var(--muted)'
   }
 
-  // 단지 기본정보 API 조회
+  // 단지 기본정보 API
   if(apt.sggCd && apt.name) {
-    const jibun = apt.jibun || ''
-    const umdNm = apt.umdNm || apt.dong || ''
-    fetch(`${PROXY}?type=info&name=${encodeURIComponent(apt.name)}&sggCd=${apt.sggCd}&jibun=${encodeURIComponent(jibun)}&umdNm=${encodeURIComponent(umdNm)}`, {headers:HDR})
-      .then(r=>r.json())
-      .then(res => {
+    fetch(`${PROXY}?type=info&name=${encodeURIComponent(apt.name)}&sggCd=${apt.sggCd}&jibun=${encodeURIComponent(apt.jibun||'')}&umdNm=${encodeURIComponent(apt.umdNm||apt.dong||'')}`, {headers:HDR})
+      .then(r=>r.json()).then(res => {
         if(!res.ok || !res.data) return
         const d = res.data
         if($('dtBuildYear') && d.built)  $('dtBuildYear').textContent = d.built+'년'
         if($('dtHouses')    && d.houses) $('dtHouses').textContent    = d.houses.toLocaleString()+'세대'
         if($('dtDongCnt')   && d.dongCnt) $('dtDongCnt').textContent  = d.dongCnt+'개 동'
         if($('dtFloor')     && d.totalFloor) $('dtFloor').textContent = d.totalFloor+'층'
-        if($('dtHeat')      && d.heat)   $('dtHeat').textContent      = d.heat
       }).catch(()=>{})
   }
 
-  // 실거래 내역 — apt.trades 없으면 API 조회
-  const renderTrades = (trades, rentTrades) => {
-    // skeleton 숨기기
-    if($('chartSkeleton')) $('chartSkeleton').style.display = 'none'
-    const canvas = $('dtPriceChart')
-    const skWrap = $('chartSkeletonWrap')
+  // normName 유틸
+  const normName = n => n?.replace(/\s+/g,'').replace(/아파트$|APT$|apt$/,'').replace(/\(.*?\)/g,'').replace(/[^\w가-힣]/g,'').toLowerCase()||''
 
+  // 실거래/전세 렌더링
+  const renderTrades = (trades, rentTrades) => {
+    if($('chartSkeleton')) $('chartSkeleton').style.display = 'none'
+    const canvas = $('dtPriceChart'), skWrap = $('chartSkeletonWrap')
     if(trades.length >= 1) {
       if(canvas) canvas.style.display = 'block'
       if(skWrap) skWrap.style.cssText = 'position:relative;height:140px'
       if(canvas) {
         if(canvas._chart) { canvas._chart.destroy(); canvas._chart = null }
-        const sorted = [...trades].sort((a,b) => (a.date||'').localeCompare(b.date||''))
-        const labels = sorted.map(t => t.date?.slice(2,7)||'')
-        const prices = sorted.map(t => Math.round((t.price||0)/100000000*100)/100)
+        const sorted = [...trades].sort((a,b)=>(a.date||'').localeCompare(b.date||''))
         canvas._chart = new Chart(canvas, {
-          type: 'line',
-          data: { labels, datasets: [{ data: prices, borderColor: '#e8c87a', backgroundColor: 'rgba(232,200,122,.08)', borderWidth: 2, pointRadius: 4, pointBackgroundColor: '#e8c87a', fill: true, tension: 0.3 }] },
-          options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } },
-            scales: {
-              x: { ticks: { color: '#888', font: { size: 10 } }, grid: { color: 'rgba(255,255,255,.05)' } },
-              y: { ticks: { color: '#888', font: { size: 10 }, callback: v => v+'억' }, grid: { color: 'rgba(255,255,255,.05)' } }
-            }
-          }
+          type:'line',
+          data:{labels:sorted.map(t=>t.date?.slice(2,7)||''),datasets:[{data:sorted.map(t=>Math.round((t.price||0)/100000000*100)/100),borderColor:'#e8c87a',backgroundColor:'rgba(232,200,122,.08)',borderWidth:2,pointRadius:4,pointBackgroundColor:'#e8c87a',fill:true,tension:0.3}]},
+          options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{color:'#888',font:{size:10}},grid:{color:'rgba(255,255,255,.05)'}},y:{ticks:{color:'#888',font:{size:10},callback:v=>v+'억'},grid:{color:'rgba(255,255,255,.05)'}}}}
         })
       }
     } else {
       if(skWrap) skWrap.style.cssText = 'position:relative;height:60px;background:rgba(255,255,255,.03);border-radius:10px;display:flex;align-items:center;justify-content:center'
-      if($('chartSkeleton')) { $('chartSkeleton').style.display = 'block'; $('chartSkeleton').textContent = '실거래 데이터 없음' }
+      if($('chartSkeleton')) { $('chartSkeleton').style.display='block'; $('chartSkeleton').textContent='실거래 데이터 없음' }
     }
-
-    rentTrades = rentTrades || apt.rentTrades || []
+    rentTrades = rentTrades || []
     if($('dtTradeList')) {
-      const buyHtml = trades.length
-        ? trades.map(t=>`
-            <div style="display:flex;justify-content:space-between;padding:9px 0;border-bottom:1px solid rgba(255,255,255,.04)">
-              <div>
-                <div style="font-size:12px;font-weight:500">매매 · ${Math.round(t.area||0)}㎡ · ${t.floor||'—'}층</div>
-                <div style="font-size:10px;color:var(--muted)">${t.date||''}</div>
-              </div>
-              <div style="text-align:right">
-                <div style="font-size:13px;font-weight:700;color:var(--gold)">${fmt(t.price)}</div>
-              </div>
-            </div>`).join('')
-        : '<div style="color:var(--muted);font-size:11px;text-align:center;padding:12px">최근 실거래 없음</div>'
-
-      const rentHtml = rentTrades.length
-        ? rentTrades.map(t=>`
-            <div style="display:flex;justify-content:space-between;padding:9px 0;border-bottom:1px solid rgba(255,255,255,.04)">
-              <div>
-                <div style="font-size:12px;font-weight:500">전세 · ${Math.round(t.area||0)}㎡</div>
-              </div>
-              <div style="text-align:right">
-                <div style="font-size:13px;font-weight:700;color:#60a5fa">${fmt(t.deposit)}</div>
-              </div>
-            </div>`).join('')
-        : ''
-
-      $('dtTradeList').innerHTML = `
-        <div style="font-size:11px;font-weight:700;color:var(--muted);margin-bottom:6px">🏠 매매 ${trades.length}건</div>
-        ${buyHtml}
-        ${rentTrades.length > 0 ? `<div style="font-size:11px;font-weight:700;color:var(--muted);margin-top:12px;margin-bottom:6px">🔑 전세 ${rentTrades.length}건</div>${rentHtml}` : ''}
-      `
+      const buyHtml = trades.length ? trades.map(t=>`<div style="display:flex;justify-content:space-between;padding:9px 0;border-bottom:1px solid rgba(255,255,255,.04)"><div><div style="font-size:12px;font-weight:500">매매 · ${Math.round(t.area||0)}㎡ · ${t.floor||'—'}층</div><div style="font-size:10px;color:var(--muted)">${t.date||''}</div></div><div style="text-align:right"><div style="font-size:13px;font-weight:700;color:var(--gold)">${fmt(t.price)}</div></div></div>`).join('') : '<div style="color:var(--muted);font-size:11px;text-align:center;padding:12px">최근 실거래 없음</div>'
+      const rentHtml = rentTrades.length ? rentTrades.map(t=>`<div style="display:flex;justify-content:space-between;padding:9px 0;border-bottom:1px solid rgba(255,255,255,.04)"><div><div style="font-size:12px;font-weight:500">전세 · ${Math.round(t.area||0)}㎡</div><div style="font-size:10px;color:var(--muted)">${t.date||''}</div></div><div style="text-align:right"><div style="font-size:13px;font-weight:700;color:#60a5fa">${fmt(t.deposit)}</div></div></div>`).join('') : ''
+      $('dtTradeList').innerHTML = `<div style="font-size:11px;font-weight:700;color:var(--muted);margin-bottom:6px">🏠 매매 ${trades.length}건</div>${buyHtml}${rentTrades.length>0?`<div style="font-size:11px;font-weight:700;color:var(--muted);margin-top:12px;margin-bottom:6px">🔑 전세 ${rentTrades.length}건</div>${rentHtml}`:''}`
     }
   }
 
-  if(apt.trades?.length) {
-    renderTrades(apt.trades)
-    // 전세 별도 조회
-    if(apt.sggCd && !apt.rentTrades?.length) {
-      fetch(`${PROXY}?type=rent&code=${apt.sggCd}`, {headers:HDR})
-        .then(r=>r.json())
-        .then(res => {
-          if(!res.ok) return
-          if(!$('detailSheet')?.classList.contains('open')) return
-          if(curApt?.name !== apt.name) return
-          const normName = n => n?.replace(/\s+/g,'').replace(/아파트$|APT$|apt$/,'').replace(/\(.*?\)/g,'').replace(/[^\w가-힣]/g,'').toLowerCase()||''
-          const keys = [apt.sggCd+'_'+apt.name, apt.sggCd+'_'+normName(apt.name), apt.name, normName(apt.name)]
-          let rentInfo = null
-          for(const k of keys) { if(res.data[k]) { rentInfo = res.data[k]; break } }
-          if(rentInfo) {
-            const latestRentDeposit = rentInfo.latestDeposit || rentInfo.avgDeposit
-            // avgPrice 없으면 trades에서 계산
-            const basePrice = apt.avgPrice || (apt.trades?.length ? Math.round(apt.trades.reduce((s,t)=>s+(t.price||0),0)/apt.trades.length) : 0)
-            if(latestRentDeposit > 0 && basePrice > 0) {
-              const jsr = Math.round(latestRentDeposit / basePrice * 100)
-              if($('dtJsr')) { 
-                $('dtJsr').textContent = jsr+'%'
-                $('dtJsr').style.color = jsr>=60?'var(--up)':jsr>=40?'var(--gold)':'var(--muted)' 
-              }
-              curApt = {...curApt, jeonseRatio: jsr, rentTrades: rentInfo.trades}
-              renderTrades([...apt.trades], rentInfo.trades)
-            }
-          }
-        }).catch(()=>{})
-    }
-  } else if(apt.sggCd) {
-    const sheetAptName = apt.name
-    fetch(`${PROXY}?type=trade&code=${apt.sggCd}`, {headers:HDR})
-      .then(r=>r.json())
-      .then(res => {
-        // 시트가 닫혔거나 다른 단지로 바뀌었으면 무시
-        if(!res.ok) return
-        if(!$('detailSheet')?.classList.contains('open')) return
-        if(curApt?.name !== sheetAptName) return
-        const matched = (res.data||[]).filter(a => a.name === apt.name)
-        const trades = matched.length ? matched[0].trades||[] : []
-        const matchedApt = matched.length ? matched[0] : apt
-        // avgPrice 없으면 trades에서 직접 계산
-        if(!matchedApt.avgPrice && trades.length) {
-          matchedApt.avgPrice = Math.round(trades.reduce((s,t)=>s+(t.price||0),0)/trades.length)
-        }
-        // avgPrice, count 등 업데이트
-        if(matched.length) {
-          curApt = {...curApt, ...matchedApt}
-          // 상단 가격 업데이트
-          if($('dtPrice')) $('dtPrice').textContent = fmt(curApt.avgPrice||0)
-          calcLoanForSheet(curApt)
+  // rent 조회 + 전세가율 계산
+  const fetchRent = (trades, basePrice, aptName) => {
+    if(!apt.sggCd) return
+    fetch(`${PROXY}?type=rent&code=${apt.sggCd}`, {headers:HDR})
+      .then(r=>r.json()).then(res => {
+        if(!res.ok || !$('detailSheet')?.classList.contains('open') || curApt?.name !== aptName) return
+        const keys = [apt.sggCd+'_'+apt.name, apt.sggCd+'_'+normName(apt.name), apt.name, normName(apt.name)]
+        let rentInfo = null
+        for(const k of keys) { if(res.data[k]) { rentInfo = res.data[k]; break } }
+        if(!rentInfo) return
+        const latestDeposit = rentInfo.latestDeposit || rentInfo.avgDeposit
+        if(latestDeposit > 0 && basePrice > 0) {
+          const jsr = Math.round(latestDeposit / basePrice * 100)
+          curApt = {...curApt, jeonseRatio: jsr, rentTrades: rentInfo.trades}
+          if($('dtJsr')) { $('dtJsr').textContent = jsr+'%'; $('dtJsr').style.color = jsr>=60?'var(--up)':jsr>=40?'var(--gold)':'var(--muted)' }
+          renderTrades(trades, rentInfo.trades)
           runAiAnalysis(curApt)
-        }
-        renderTrades(trades)
-        // trade 완료 후 rent 별도 조회
-        if(apt.sggCd) {
-          fetch(`${PROXY}?type=rent&code=${apt.sggCd}`, {headers:HDR})
-            .then(r=>r.json())
-            .then(rentRes => {
-              if(!rentRes.ok) return
-              if(!$('detailSheet')?.classList.contains('open')) return
-              if(curApt?.name !== sheetAptName) return
-              const normName = n => n?.replace(/\s+/g,'').replace(/아파트$|APT$|apt$/,'').replace(/\(.*?\)/g,'').replace(/[^\w가-힣]/g,'').toLowerCase()||''
-              const keys = [apt.sggCd+'_'+apt.name, apt.sggCd+'_'+normName(apt.name), apt.name, normName(apt.name)]
-              let rentInfo = null
-              for(const k of keys) { if(rentRes.data[k]) { rentInfo = rentRes.data[k]; break } }
-              if(rentInfo) {
-                const latestDeposit = rentInfo.latestDeposit || rentInfo.avgDeposit
-                const basePrice = matchedApt.avgPrice || (trades.length ? Math.round(trades.reduce((s,t)=>s+(t.price||0),0)/trades.length) : 0)
-                if(latestDeposit > 0 && basePrice > 0) {
-                  const jsr = Math.round(latestDeposit / basePrice * 100)
-                  curApt = {...curApt, jeonseRatio: jsr, rentTrades: rentInfo.trades}
-                  if($('dtJsr')) { $('dtJsr').textContent = jsr+'%'; $('dtJsr').style.color = jsr>=60?'var(--up)':jsr>=40?'var(--gold)':'var(--muted)' }
-                  renderTrades(trades, rentInfo.trades)
-                  runAiAnalysis(curApt)
-                }
-              }
-            }).catch(()=>{})
         }
       }).catch(()=>{})
   }
-  // 대출/분석 — 데이터 있으면 바로, 없으면 trade API 완료 후 실행
-  if(apt.avgPrice || apt.trades?.length) {
+
+  if(apt.trades?.length) {
+    // 추천단지 등 trades 있는 경우
+    renderTrades(apt.trades)
+    const basePrice = apt.avgPrice || Math.round(apt.trades.reduce((s,t)=>s+(t.price||0),0)/apt.trades.length)
+    calcLoanForSheet({...apt, avgPrice: basePrice})
+    runAiAnalysis({...apt, avgPrice: basePrice})
+    fetchRent(apt.trades, basePrice, apt.name)
+  } else if(apt.sggCd) {
+    // 검색/시장현황 등 trades 없는 경우
+    if($('dtAiText')) $('dtAiText').innerHTML = '<div style="color:var(--muted);font-size:12px;padding:8px">분석 중...</div>'
+    const sheetAptName = apt.name
+    fetch(`${PROXY}?type=trade&code=${apt.sggCd}`, {headers:HDR})
+      .then(r=>r.json()).then(res => {
+        if(!res.ok || !$('detailSheet')?.classList.contains('open') || curApt?.name !== sheetAptName) return
+        const matched = (res.data||[]).find(a => a.name === apt.name)
+        const trades = matched?.trades || []
+        const avgPrice = matched?.avgPrice || (trades.length ? Math.round(trades.reduce((s,t)=>s+(t.price||0),0)/trades.length) : 0)
+        if(matched) curApt = {...curApt, ...matched, avgPrice}
+        else curApt = {...curApt, avgPrice}
+        if($('dtPrice') && avgPrice) $('dtPrice').textContent = fmt(avgPrice)
+        renderTrades(trades)
+        calcLoanForSheet(curApt)
+        runAiAnalysis(curApt)
+        fetchRent(trades, avgPrice, sheetAptName)
+      }).catch(()=>{})
+  } else {
     calcLoanForSheet(apt)
     runAiAnalysis(apt)
-  } else {
-    // 로딩 표시
-    const textEl = $('dtAiText')
-    if(textEl) textEl.innerHTML = '<div style="color:var(--muted);font-size:12px;padding:8px">분석 중...</div>'
   }
   updateFavBtn()
   $('sheetOverlay')?.classList.add('open')
