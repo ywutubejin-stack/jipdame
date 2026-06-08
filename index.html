@@ -1078,6 +1078,8 @@ function openSheet(apt, showFavBtn=true) {
         // avgPrice, count 등 업데이트
         if(matched.length) {
           curApt = {...curApt, ...matchedApt}
+          // 상단 가격 업데이트
+          if($('dtPrice')) $('dtPrice').textContent = fmt(curApt.avgPrice||0)
           calcLoanForSheet(curApt)
           runAiAnalysis(curApt)
         }
@@ -1109,9 +1111,15 @@ function openSheet(apt, showFavBtn=true) {
         }
       }).catch(()=>{})
   }
-  // 대출 계산
-  calcLoanForSheet(apt)
-  runAiAnalysis(apt)
+  // 대출/분석 — 데이터 있으면 바로, 없으면 trade API 완료 후 실행
+  if(apt.avgPrice || apt.trades?.length) {
+    calcLoanForSheet(apt)
+    runAiAnalysis(apt)
+  } else {
+    // 로딩 표시
+    const textEl = $('dtAiText')
+    if(textEl) textEl.innerHTML = '<div style="color:var(--muted);font-size:12px;padding:8px">분석 중...</div>'
+  }
   updateFavBtn()
   $('sheetOverlay')?.classList.add('open')
   $('detailSheet')?.classList.add('open')
