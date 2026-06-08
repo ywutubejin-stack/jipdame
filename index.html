@@ -921,7 +921,7 @@ function onSearch(v) {
         r.appendChild(d)
       })
     } catch(e) { console.warn('검색 오류:', e) }
-  }, 400)
+  }, 800)
 }
 
 /* ── 단지 시트 ── */
@@ -1071,6 +1071,12 @@ function openSheet(apt, showFavBtn=true) {
         const matched = (res.data||[]).filter(a => a.name === apt.name)
         const trades = matched.length ? matched[0].trades||[] : []
         const matchedApt = matched.length ? matched[0] : apt
+        // avgPrice, count 등 업데이트
+        if(matched.length) {
+          curApt = {...curApt, ...matchedApt}
+          calcLoanForSheet(curApt)
+          runAiAnalysis(curApt)
+        }
         renderTrades(trades)
         // trade 완료 후 rent 별도 조회
         if(apt.sggCd) {
