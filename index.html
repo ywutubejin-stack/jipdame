@@ -564,7 +564,14 @@ body{background:#07090f;}
       <option value="price_desc">가격 높은순</option>
       <option value="jsr">전세가율 높은순</option>
     </select>
-    <select id="mapBudget" onchange="renderMapView()" style="background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:6px 10px;font-size:12px;cursor:pointer">
+    <select id="mapSize" onchange="renderMapView()" style="background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:6px 10px;font-size:12px;cursor:pointer">
+      <option value="">전체 평형</option>
+      <option value="10">10평대 (~49㎡)</option>
+      <option value="20">20평대 (49~66㎡)</option>
+      <option value="25">25평대 (66~85㎡)</option>
+      <option value="30">30평대 (85~105㎡)</option>
+      <option value="40">40평대 이상 (105㎡~)</option>
+    </select>
       <option value="">전체 가격대</option>
       <option value="5">5억 이하</option>
       <option value="10">10억 이하</option>
@@ -2552,6 +2559,8 @@ async function renderMapView() {
   const sgg = $('mapSgg')?.value || 'sido'
   const sortVal = $('mapSort')?.value || 'score'
   const budgetMax = parseInt($('mapBudget')?.value || '0') * 100000000
+  const sizeFilter = $('mapSize')?.value || ''
+  const sizeRanges = {'10':[0,49],'20':[49,66],'25':[66,85],'30':[85,105],'40':[105,999]}
   const listEl = $('mapAptList')
   const container = $('mapKakaoMap')
 
@@ -2568,6 +2577,10 @@ async function renderMapView() {
 
   let data = res.data.map(a=>({...a, _score:calcAptScore(a)}))
   if(budgetMax > 0) data = data.filter(a => (a.avgPrice||0) <= budgetMax)
+  if(sizeFilter && sizeRanges[sizeFilter]) {
+    const [mn, mx] = sizeRanges[sizeFilter]
+    data = data.filter(a => (a.area||0) >= mn && (a.area||0) < mx)
+  }
   if(sortVal==='score') data.sort((a,b)=>b._score-a._score)
   else if(sortVal==='price_asc') data.sort((a,b)=>(a.avgPrice||0)-(b.avgPrice||0))
   else if(sortVal==='price_desc') data.sort((a,b)=>(b.avgPrice||0)-(a.avgPrice||0))
