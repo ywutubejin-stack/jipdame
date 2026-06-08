@@ -1071,6 +1071,10 @@ function openSheet(apt, showFavBtn=true) {
         const matched = (res.data||[]).filter(a => a.name === apt.name)
         const trades = matched.length ? matched[0].trades||[] : []
         const matchedApt = matched.length ? matched[0] : apt
+        // avgPrice 없으면 trades에서 직접 계산
+        if(!matchedApt.avgPrice && trades.length) {
+          matchedApt.avgPrice = Math.round(trades.reduce((s,t)=>s+(t.price||0),0)/trades.length)
+        }
         // avgPrice, count 등 업데이트
         if(matched.length) {
           curApt = {...curApt, ...matchedApt}
@@ -1098,6 +1102,7 @@ function openSheet(apt, showFavBtn=true) {
                   curApt = {...curApt, jeonseRatio: jsr, rentTrades: rentInfo.trades}
                   if($('dtJsr')) { $('dtJsr').textContent = jsr+'%'; $('dtJsr').style.color = jsr>=60?'var(--up)':jsr>=40?'var(--gold)':'var(--muted)' }
                   renderTrades(trades, rentInfo.trades)
+                  runAiAnalysis(curApt)
                 }
               }
             }).catch(()=>{})
