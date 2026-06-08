@@ -445,20 +445,6 @@ body{background:#07090f;}
   <div style="font-family:var(--serif);font-size:20px;font-weight:700;margin-bottom:3px">시장 현황</div>
   <div style="font-size:11px;color:var(--muted);margin-bottom:12px">전국 실거래가 데이터 · 실시간 연동</div>
 
-  <!-- 목록/지도 토글 -->
-  <div style="display:flex;gap:6px;margin-bottom:12px">
-    <button id="mktViewList" onclick="setMktView('list')" style="flex:1;padding:8px;border-radius:10px;border:1px solid var(--gold);background:rgba(232,200,122,.15);color:var(--gold);font-size:12px;font-weight:600;cursor:pointer">📋 목록</button>
-    <button id="mktViewMap" onclick="setMktView('map')" style="flex:1;padding:8px;border-radius:10px;border:1px solid var(--border);background:none;color:var(--muted);font-size:12px;font-weight:600;cursor:pointer">🗺️ 지도</button>
-  </div>
-
-  <!-- 지도 뷰 -->
-  <div id="mktMapView" style="display:none">
-    <div id="mktKakaoMap" style="width:100%;height:420px;border-radius:14px;overflow:hidden;margin-bottom:12px"></div>
-    <div id="mktMapList" style="display:flex;flex-direction:column;gap:8px"></div>
-  </div>
-
-  <!-- 목록 뷰 -->
-  <div id="mktListView">
   <!-- 지역 선택 -->
   <div style="display:flex;gap:6px;margin-bottom:12px;overflow-x:auto;scrollbar-width:none;padding-bottom:2px">
     <select id="mktSido" style="background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:6px 10px;font-size:12px;cursor:pointer;flex-shrink:0">
@@ -547,24 +533,18 @@ body{background:#07090f;}
       <div id="mktRecentList"><div style="color:var(--muted);font-size:11px;text-align:center;padding:20px">로딩 중...</div></div>
     </div>
   </div>
-  </div> <!-- /mktListView -->
+
 </div>
 </div>
 
 <div class="page" id="page-map">
 <div class="mkt-page">
   <div style="font-family:var(--serif);font-size:20px;font-weight:700;margin-bottom:3px">지도 탐색</div>
-  <div style="font-size:11px;color:var(--muted);margin-bottom:12px">지역별 단지 시세 · 추천 점수 확인</div>
+  <div style="font-size:11px;color:var(--muted);margin-bottom:12px">집담 점수 기준 단지 분포 확인</div>
 
-  <!-- 지역 선택 -->
+  <!-- 필터 -->
   <div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap">
-    <select id="mapSido" onchange="renderMapView()" style="background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:6px 10px;font-size:12px;cursor:pointer">
-      <option value="서울">서울</option>
-      <option value="경기">경기</option>
-      <option value="인천">인천</option>
-    </select>
     <select id="mapSgg" onchange="renderMapView()" style="background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:6px 10px;font-size:12px;cursor:pointer">
-      <option value="">전체 구</option>
       <option value="11680">강남구</option>
       <option value="11650">서초구</option>
       <option value="11710">송파구</option>
@@ -572,19 +552,34 @@ body{background:#07090f;}
       <option value="11440">마포구</option>
       <option value="11200">성동구</option>
       <option value="11740">강동구</option>
-      <option value="11380">은평구</option>
       <option value="11590">동작구</option>
+      <option value="11380">은평구</option>
+      <option value="11530">구로구</option>
     </select>
     <select id="mapSort" onchange="renderMapView()" style="background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:6px 10px;font-size:12px;cursor:pointer">
       <option value="score">점수 높은순</option>
       <option value="price_asc">가격 낮은순</option>
       <option value="price_desc">가격 높은순</option>
+      <option value="jsr">전세가율 높은순</option>
+    </select>
+    <select id="mapBudget" onchange="renderMapView()" style="background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:6px 10px;font-size:12px;cursor:pointer">
+      <option value="">전체 가격대</option>
+      <option value="5">5억 이하</option>
+      <option value="10">10억 이하</option>
+      <option value="20">20억 이하</option>
+      <option value="30">30억 이하</option>
+      <option value="50">50억 이하</option>
     </select>
   </div>
 
-  <div id="mapKakaoMap" style="width:100%;height:380px;border-radius:14px;overflow:hidden;margin-bottom:12px;background:var(--bg3)"></div>
+  <div id="mapKakaoMap" style="width:100%;height:360px;border-radius:14px;overflow:hidden;margin-bottom:10px;background:var(--bg3)"></div>
 
-  <div style="font-size:11px;color:var(--muted);margin-bottom:8px">🔴 고가 &nbsp; 🟡 중가 &nbsp; 🟢 저가 &nbsp;· 핀 숫자는 집담 점수</div>
+  <!-- 범례 -->
+  <div style="display:flex;gap:12px;font-size:11px;color:var(--muted);margin-bottom:12px;justify-content:center">
+    <span>🟢 70점 이상</span>
+    <span>🟡 50~69점</span>
+    <span>🔴 49점 이하</span>
+  </div>
 
   <div id="mapAptList" style="display:flex;flex-direction:column;gap:8px"></div>
 </div>
@@ -2476,74 +2471,72 @@ let _mapMarkers = []
 let _mapDataCache = []
 
 async function renderMapView() {
-  const sgg = $('mapSgg')?.value || ''
-  const sido = $('mapSido')?.value || '서울'
+  const sgg = $('mapSgg')?.value || '11680'
   const sortVal = $('mapSort')?.value || 'score'
+  const budgetMax = parseInt($('mapBudget')?.value || '0') * 100000000
   const listEl = $('mapAptList')
   const container = $('mapKakaoMap')
 
   if(listEl) listEl.innerHTML = '<div style="text-align:center;padding:20px;color:var(--muted);font-size:12px">불러오는 중...</div>'
 
-  // API 호출
-  const url = sgg ? `${PROXY}?type=trade&code=${sgg}` : `${PROXY}?type=trade&sido=${encodeURIComponent(sido)}`
-  const res = await fetch(url, {headers:HDR}).then(r=>r.json()).catch(()=>({ok:false}))
+  const res = await fetch(`${PROXY}?type=trade&code=${sgg}`, {headers:HDR}).then(r=>r.json()).catch(()=>({ok:false}))
   if(!res.ok || !res.data?.length) {
     if(listEl) listEl.innerHTML = '<div style="text-align:center;padding:20px;color:var(--muted);font-size:12px">데이터 없음</div>'
     return
   }
 
-  let data = res.data
+  let data = res.data.map(a=>({...a, _score:calcAptScore(a)}))
+  // 예산 필터
+  if(budgetMax > 0) data = data.filter(a => (a.avgPrice||0) <= budgetMax)
   // 정렬
-  if(sortVal==='score') data = data.map(a=>({...a, _score:calcAptScore(a)})).sort((a,b)=>b._score-a._score)
+  if(sortVal==='score') data.sort((a,b)=>b._score-a._score)
   else if(sortVal==='price_asc') data.sort((a,b)=>(a.avgPrice||0)-(b.avgPrice||0))
-  else data.sort((a,b)=>(b.avgPrice||0)-(a.avgPrice||0))
+  else if(sortVal==='price_desc') data.sort((a,b)=>(b.avgPrice||0)-(a.avgPrice||0))
+  else if(sortVal==='jsr') data.sort((a,b)=>(b.jeonseRatio||0)-(a.jeonseRatio||0))
 
   _mapDataCache = data
-  const top30 = data.slice(0, 30)
-  const maxP = Math.max(...top30.map(a=>a.avgPrice||0))
-  const minP = Math.min(...top30.map(a=>a.avgPrice||0))
 
   // 목록 렌더링
   if(listEl) {
-    listEl.innerHTML = data.slice(0, 15).map(apt => {
-      const score = apt._score || calcAptScore(apt)
-      const sc = score>=70?'var(--up)':score>=50?'var(--gold)':'var(--down)'
-      const jsr = apt.jeonseRatio ? `${apt.jeonseRatio}%` : '—'
-      return `<div onclick="openSheet(${JSON.stringify(apt).replace(/"/g,'&quot;').replace(/'/g,'&#39;')})" style="background:var(--card);border-radius:12px;padding:12px 14px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;border:1px solid var(--border)">
+    listEl.innerHTML = data.slice(0, 20).map(apt => {
+      const sc = apt._score>=70?'var(--up)':apt._score>=50?'var(--gold)':'var(--down)'
+      const jsr = apt.jeonseRatio ? apt.jeonseRatio+'%' : '—'
+      const aptStr = encodeURIComponent(JSON.stringify(apt))
+      return `<div onclick="openSheet(JSON.parse(decodeURIComponent('${aptStr}')))" style="background:var(--card);border-radius:12px;padding:12px 14px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;border:1px solid var(--border)">
         <div>
           <div style="font-size:13px;font-weight:600">${apt.name}</div>
-          <div style="font-size:11px;color:var(--muted)">${apt.sigungu||apt.dong||''} · 거래 ${apt.count||0}건 · 전세 ${jsr}</div>
+          <div style="font-size:11px;color:var(--muted)">${apt.dong||''} · 거래 ${apt.count||0}건 · 전세 ${jsr}</div>
         </div>
         <div style="text-align:right;flex-shrink:0;margin-left:10px">
           <div style="font-size:13px;font-weight:700;color:var(--gold)">${fmt(apt.avgPrice)}</div>
-          <div style="font-size:11px;font-weight:700;color:${sc}">${score}점</div>
+          <div style="font-size:12px;font-weight:700;color:${sc}">${apt._score}점</div>
         </div>
       </div>`
     }).join('')
   }
 
-  // 카카오맵 마커
+  // 카카오맵 마커 (점수 기준 색상)
   if(!container || !window.kakao?.maps) return
   if(!_mapInst) {
     _mapInst = new kakao.maps.Map(container, {
-      center: new kakao.maps.LatLng(37.5665, 126.9780), level: 8
+      center: new kakao.maps.LatLng(37.5665, 126.9780), level: 7
     })
   }
   _mapMarkers.forEach(m => m.setMap(null))
   _mapMarkers = []
 
   const geocoder = new kakao.maps.services.Geocoder()
-  top30.forEach(apt => {
-    const addr = `${apt.sigungu||''} ${apt.dong||''}`
+  data.slice(0, 30).forEach(apt => {
+    const addr = apt.sigungu ? apt.sigungu + ' ' + (apt.dong||'') : apt.dong||''
     geocoder.addressSearch(addr, (result, status) => {
       if(status !== kakao.maps.services.Status.OK) return
       const pos = new kakao.maps.LatLng(result[0].y, result[0].x)
-      const score = apt._score || calcAptScore(apt)
-      const ratio = maxP > minP ? ((apt.avgPrice||0) - minP) / (maxP - minP) : 0.5
-      const color = ratio > 0.67 ? '#f87171' : ratio > 0.33 ? '#e8c87a' : '#4ade80'
-      const aptJson = JSON.stringify(apt).replace(/"/g,'&quot;').replace(/'/g,'&#39;')
-      const content = `<div onclick="openSheet(JSON.parse(decodeURIComponent('${encodeURIComponent(JSON.stringify(apt))}')))" style="background:${color};color:#111;padding:3px 7px;border-radius:8px;font-size:10px;font-weight:700;white-space:nowrap;box-shadow:0 2px 6px rgba(0,0,0,.4);cursor:pointer;line-height:1.4">${apt.name.slice(0,5)}<br>${score}점</div>`
-      const overlay = new kakao.maps.CustomOverlay({position:pos, content, yAnchor:1})
+      // 점수 기준 색상
+      const color = apt._score>=70 ? '#4ade80' : apt._score>=50 ? '#e8c87a' : '#f87171'
+      const txtColor = apt._score>=70 ? '#052e16' : '#111'
+      const aptStr = encodeURIComponent(JSON.stringify(apt))
+      const content = `<div onclick="openSheet(JSON.parse(decodeURIComponent('${aptStr}')))" style="background:${color};color:${txtColor};padding:4px 8px;border-radius:10px;font-size:10px;font-weight:700;white-space:nowrap;box-shadow:0 2px 8px rgba(0,0,0,.4);cursor:pointer;line-height:1.5;text-align:center">${apt.name.length>5?apt.name.slice(0,5)+'..':apt.name}<br>${apt._score}점</div>`
+      const overlay = new kakao.maps.CustomOverlay({position:pos, content, yAnchor:1.2})
       overlay.setMap(_mapInst)
       _mapMarkers.push(overlay)
     })
