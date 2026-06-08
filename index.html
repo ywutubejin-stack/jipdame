@@ -1043,11 +1043,19 @@ function openSheet(apt, showFavBtn=true) {
           const keys = [apt.sggCd+'_'+apt.name, apt.sggCd+'_'+normName(apt.name), apt.name, normName(apt.name)]
           let rentInfo = null
           for(const k of keys) { if(res.data[k]) { rentInfo = res.data[k]; break } }
-          if(rentInfo && apt.avgPrice > 0) {
-            const jsr = Math.round((rentInfo.latestDeposit||rentInfo.avgDeposit) / apt.avgPrice * 100)
-            if($('dtJsr')) { $('dtJsr').textContent = jsr+'%'; $('dtJsr').style.color = jsr>=60?'var(--up)':jsr>=40?'var(--gold)':'var(--muted)' }
-            curApt = {...curApt, jeonseRatio: jsr, rentTrades: rentInfo.trades}
-            renderTrades([...apt.trades], rentInfo.trades)
+          if(rentInfo) {
+            const latestRentDeposit = rentInfo.latestDeposit || rentInfo.avgDeposit
+            // avgPrice 없으면 trades에서 계산
+            const basePrice = apt.avgPrice || (apt.trades?.length ? Math.round(apt.trades.reduce((s,t)=>s+(t.price||0),0)/apt.trades.length) : 0)
+            if(latestRentDeposit > 0 && basePrice > 0) {
+              const jsr = Math.round(latestRentDeposit / basePrice * 100)
+              if($('dtJsr')) { 
+                $('dtJsr').textContent = jsr+'%'
+                $('dtJsr').style.color = jsr>=60?'var(--up)':jsr>=40?'var(--gold)':'var(--muted)' 
+              }
+              curApt = {...curApt, jeonseRatio: jsr, rentTrades: rentInfo.trades}
+              renderTrades([...apt.trades], rentInfo.trades)
+            }
           }
         }).catch(()=>{})
     }
@@ -1062,13 +1070,31 @@ function openSheet(apt, showFavBtn=true) {
         if(curApt?.name !== sheetAptName) return
         const matched = (res.data||[]).filter(a => a.name === apt.name)
         const trades = matched.length ? matched[0].trades||[] : []
+        const matchedApt = matched.length ? matched[0] : apt
         renderTrades(trades)
-        if(matched.length && matched[0].jeonseRatio > 0) {
-          curApt = {...curApt, ...matched[0]}
-          if($('dtJsr')) {
-            $('dtJsr').textContent = matched[0].jeonseRatio+'%'
-            $('dtJsr').style.color = matched[0].jeonseRatio>=60?'var(--up)':matched[0].jeonseRatio>=40?'var(--gold)':'var(--muted)'
-          }
+        // trade 완료 후 rent 별도 조회
+        if(apt.sggCd) {
+          fetch(`${PROXY}?type=rent&code=${apt.sggCd}`, {headers:HDR})
+            .then(r=>r.json())
+            .then(rentRes => {
+              if(!rentRes.ok) return
+              if(!$('detailSheet')?.classList.contains('open')) return
+              if(curApt?.name !== sheetAptName) return
+              const normName = n => n?.replace(/\s+/g,'').replace(/아파트$|APT$|apt$/,'').replace(/\(.*?\)/g,'').replace(/[^\w가-힣]/g,'').toLowerCase()||''
+              const keys = [apt.sggCd+'_'+apt.name, apt.sggCd+'_'+normName(apt.name), apt.name, normName(apt.name)]
+              let rentInfo = null
+              for(const k of keys) { if(rentRes.data[k]) { rentInfo = rentRes.data[k]; break } }
+              if(rentInfo) {
+                const latestDeposit = rentInfo.latestDeposit || rentInfo.avgDeposit
+                const basePrice = matchedApt.avgPrice || (trades.length ? Math.round(trades.reduce((s,t)=>s+(t.price||0),0)/trades.length) : 0)
+                if(latestDeposit > 0 && basePrice > 0) {
+                  const jsr = Math.round(latestDeposit / basePrice * 100)
+                  curApt = {...curApt, jeonseRatio: jsr, rentTrades: rentInfo.trades}
+                  if($('dtJsr')) { $('dtJsr').textContent = jsr+'%'; $('dtJsr').style.color = jsr>=60?'var(--up)':jsr>=40?'var(--gold)':'var(--muted)' }
+                  renderTrades(trades, rentInfo.trades)
+                }
+              }
+            }).catch(()=>{})
         }
       }).catch(()=>{})
   }
