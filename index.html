@@ -544,17 +544,19 @@ body{background:#07090f;}
 
   <!-- 필터 -->
   <div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap">
+    <select id="mapSido" onchange="updateMapSgg()" style="background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:6px 10px;font-size:12px;cursor:pointer">
+      <option value="서울">서울</option>
+      <option value="경기">경기</option>
+      <option value="인천">인천</option>
+      <option value="부산">부산</option>
+      <option value="대구">대구</option>
+      <option value="광주">광주</option>
+      <option value="대전">대전</option>
+      <option value="울산">울산</option>
+      <option value="세종">세종</option>
+    </select>
     <select id="mapSgg" onchange="renderMapView()" style="background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:6px 10px;font-size:12px;cursor:pointer">
-      <option value="11680">강남구</option>
-      <option value="11650">서초구</option>
-      <option value="11710">송파구</option>
-      <option value="11170">용산구</option>
-      <option value="11440">마포구</option>
-      <option value="11200">성동구</option>
-      <option value="11740">강동구</option>
-      <option value="11590">동작구</option>
-      <option value="11380">은평구</option>
-      <option value="11530">구로구</option>
+      <option value="sido">전체</option>
     </select>
     <select id="mapSort" onchange="renderMapView()" style="background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:6px 10px;font-size:12px;cursor:pointer">
       <option value="score">점수 높은순</option>
@@ -950,7 +952,7 @@ function navTo(p) {
   if(p==='rec') goToRec()
   if(p==='fav') renderFavs()
   if(p==='mkt') renderMkt()
-  if(p==='map') renderMapView()
+  if(p==='map') { updateMapSgg() }
   if(p==='timing') renderTiming()
 }
 
@@ -2470,12 +2472,37 @@ async function loadHighlights() {
 }
 
 // 지역/정렬 변경 시 재조회
-let _mapInst = null
-let _mapMarkers = []
-let _mapDataCache = []
+let _mapInst = null, _mapMarkers = [], _mapDataCache = []
+
+const MAP_SGG = {
+  '서울': [['전체','sido'],['강남구','11680'],['서초구','11650'],['송파구','11710'],['용산구','11170'],['마포구','11440'],['성동구','11200'],['강동구','11740'],['동작구','11590'],['영등포구','11560'],['강서구','11500'],['은평구','11380'],['노원구','11350'],['관악구','11620'],['구로구','11530']],
+  '경기': [['전체','sido'],['수원시','41110'],['성남시','41130'],['고양시','41280'],['용인시','41460'],['부천시','41190'],['안산시','41270'],['화성시','41590'],['남양주시','41360'],['안양시','41170'],['평택시','41220']],
+  '인천': [['전체','sido'],['연수구','28710'],['남동구','28200'],['부평구','28237'],['서구','28260'],['미추홀구','28177']],
+  '부산': [['전체','sido'],['해운대구','26350'],['수영구','26380'],['연제구','26410'],['동래구','26260'],['남구','26290']],
+  '대구': [['전체','sido'],['수성구','27200'],['달서구','27290'],['중구','27110'],['북구','27230']],
+  '광주': [['전체','sido'],['서구','29140'],['남구','29155'],['북구','29170'],['광산구','29200']],
+  '대전': [['전체','sido'],['서구','30140'],['유성구','30200'],['중구','30110'],['동구','30110']],
+  '울산': [['전체','sido'],['남구','31140'],['북구','31170'],['동구','31110']],
+  '세종': [['전체','sido']],
+}
+
+function updateMapSgg() {
+  const sido = $('mapSido')?.value || '서울'
+  const sggSel = $('mapSgg')
+  if(!sggSel) return
+  sggSel.innerHTML = ''
+  const opts = MAP_SGG[sido] || [['전체','sido']]
+  opts.forEach(([label, val]) => {
+    const o = document.createElement('option')
+    o.value = val; o.textContent = label
+    sggSel.appendChild(o)
+  })
+  renderMapView()
+}
 
 async function renderMapView() {
-  const sgg = $('mapSgg')?.value || '11680'
+  const sido = $('mapSido')?.value || '서울'
+  const sgg = $('mapSgg')?.value || 'sido'
   const sortVal = $('mapSort')?.value || 'score'
   const budgetMax = parseInt($('mapBudget')?.value || '0') * 100000000
   const listEl = $('mapAptList')
@@ -2483,16 +2510,17 @@ async function renderMapView() {
 
   if(listEl) listEl.innerHTML = '<div style="text-align:center;padding:20px;color:var(--muted);font-size:12px">불러오는 중...</div>'
 
-  const res = await fetch(`${PROXY}?type=trade&code=${sgg}`, {headers:HDR}).then(r=>r.json()).catch(()=>({ok:false}))
+  const url = sgg === 'sido'
+    ? `${PROXY}?type=trade&sido=${encodeURIComponent(sido)}`
+    : `${PROXY}?type=trade&code=${sgg}`
+  const res = await fetch(url, {headers:HDR}).then(r=>r.json()).catch(()=>({ok:false}))
   if(!res.ok || !res.data?.length) {
     if(listEl) listEl.innerHTML = '<div style="text-align:center;padding:20px;color:var(--muted);font-size:12px">데이터 없음</div>'
     return
   }
 
   let data = res.data.map(a=>({...a, _score:calcAptScore(a)}))
-  // 예산 필터
   if(budgetMax > 0) data = data.filter(a => (a.avgPrice||0) <= budgetMax)
-  // 정렬
   if(sortVal==='score') data.sort((a,b)=>b._score-a._score)
   else if(sortVal==='price_asc') data.sort((a,b)=>(a.avgPrice||0)-(b.avgPrice||0))
   else if(sortVal==='price_desc') data.sort((a,b)=>(b.avgPrice||0)-(a.avgPrice||0))
@@ -2509,7 +2537,7 @@ async function renderMapView() {
       return `<div onclick="openSheet(JSON.parse(decodeURIComponent('${aptStr}')))" style="background:var(--card);border-radius:12px;padding:12px 14px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;border:1px solid var(--border)">
         <div>
           <div style="font-size:13px;font-weight:600">${apt.name}</div>
-          <div style="font-size:11px;color:var(--muted)">${apt.dong||''} · 거래 ${apt.count||0}건 · 전세 ${jsr}</div>
+          <div style="font-size:11px;color:var(--muted)">${apt.dong||apt.sigungu||''} · 거래 ${apt.count||0}건 · 전세 ${jsr}</div>
         </div>
         <div style="text-align:right;flex-shrink:0;margin-left:10px">
           <div style="font-size:13px;font-weight:700;color:var(--gold)">${fmt(apt.avgPrice)}</div>
@@ -2519,11 +2547,11 @@ async function renderMapView() {
     }).join('')
   }
 
-  // 카카오맵 마커 (점수 기준 색상)
+  // 카카오맵
   if(!container || !window.kakao?.maps) return
   if(!_mapInst) {
     _mapInst = new kakao.maps.Map(container, {
-      center: new kakao.maps.LatLng(37.5665, 126.9780), level: 7
+      center: new kakao.maps.LatLng(37.5665, 126.9780), level: 8
     })
   }
   _mapMarkers.forEach(m => m.setMap(null))
@@ -2531,11 +2559,10 @@ async function renderMapView() {
 
   const geocoder = new kakao.maps.services.Geocoder()
   data.slice(0, 30).forEach(apt => {
-    const addr = apt.sigungu ? apt.sigungu + ' ' + (apt.dong||'') : apt.dong||''
+    const addr = (apt.sigungu||sido) + ' ' + (apt.dong||'')
     geocoder.addressSearch(addr, (result, status) => {
       if(status !== kakao.maps.services.Status.OK) return
       const pos = new kakao.maps.LatLng(result[0].y, result[0].x)
-      // 점수 기준 색상
       const color = apt._score>=70 ? '#4ade80' : apt._score>=50 ? '#e8c87a' : '#f87171'
       const txtColor = apt._score>=70 ? '#052e16' : '#111'
       const aptStr = encodeURIComponent(JSON.stringify(apt))
