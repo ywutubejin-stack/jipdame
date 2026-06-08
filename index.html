@@ -551,6 +551,45 @@ body{background:#07090f;}
 </div>
 </div>
 
+<div class="page" id="page-map">
+<div class="mkt-page">
+  <div style="font-family:var(--serif);font-size:20px;font-weight:700;margin-bottom:3px">지도 탐색</div>
+  <div style="font-size:11px;color:var(--muted);margin-bottom:12px">지역별 단지 시세 · 추천 점수 확인</div>
+
+  <!-- 지역 선택 -->
+  <div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap">
+    <select id="mapSido" onchange="renderMapView()" style="background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:6px 10px;font-size:12px;cursor:pointer">
+      <option value="서울">서울</option>
+      <option value="경기">경기</option>
+      <option value="인천">인천</option>
+    </select>
+    <select id="mapSgg" onchange="renderMapView()" style="background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:6px 10px;font-size:12px;cursor:pointer">
+      <option value="">전체 구</option>
+      <option value="11680">강남구</option>
+      <option value="11650">서초구</option>
+      <option value="11710">송파구</option>
+      <option value="11170">용산구</option>
+      <option value="11440">마포구</option>
+      <option value="11200">성동구</option>
+      <option value="11740">강동구</option>
+      <option value="11380">은평구</option>
+      <option value="11590">동작구</option>
+    </select>
+    <select id="mapSort" onchange="renderMapView()" style="background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:6px 10px;font-size:12px;cursor:pointer">
+      <option value="score">점수 높은순</option>
+      <option value="price_asc">가격 낮은순</option>
+      <option value="price_desc">가격 높은순</option>
+    </select>
+  </div>
+
+  <div id="mapKakaoMap" style="width:100%;height:380px;border-radius:14px;overflow:hidden;margin-bottom:12px;background:var(--bg3)"></div>
+
+  <div style="font-size:11px;color:var(--muted);margin-bottom:8px">🔴 고가 &nbsp; 🟡 중가 &nbsp; 🟢 저가 &nbsp;· 핀 숫자는 집담 점수</div>
+
+  <div id="mapAptList" style="display:flex;flex-direction:column;gap:8px"></div>
+</div>
+</div>
+
 <div class="page" id="page-timing">
 <div class="mkt-page">
   <div style="font-family:var(--serif);font-size:20px;font-weight:700;margin-bottom:3px">매수 타이밍</div>
@@ -698,11 +737,11 @@ body{background:#07090f;}
   <button class="nb active" id="nb-home">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>내조건
   </button>
-  <button class="nb" id="nb-rec">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>추천단지
-  </button>
   <button class="nb" id="nb-mkt">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>시장현황
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>시장
+  </button>
+  <button class="nb" id="nb-map">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="22"/></svg>지도
   </button>
   <button class="nb" id="nb-timing">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>타이밍
@@ -910,9 +949,9 @@ function navTo(p) {
   $('page-'+p)?.classList.add('active')
   $('nb-'+p)?.classList.add('active')
   document.querySelector('.scroll')?.scrollTop && (document.querySelector('.scroll').scrollTop=0)
-  if(p==='rec')  goToRec()
   if(p==='fav') renderFavs()
   if(p==='mkt') renderMkt()
+  if(p==='map') renderMapView()
   if(p==='timing') renderTiming()
 }
 
@@ -1030,9 +1069,28 @@ function openSheet(apt, showFavBtn=true) {
         let rentInfo = null
         for(const k of keys) { if(res.data[k]) { rentInfo = res.data[k]; break } }
         if(!rentInfo) return
-        const latestDeposit = rentInfo.latestDeposit || rentInfo.avgDeposit
-        if(latestDeposit > 0 && basePrice > 0) {
-          const jsr = Math.round(latestDeposit / basePrice * 100)
+
+        // 같은 평형으로 전세가율 계산
+        let rentDeposit = 0
+        if(rentInfo.byArea && trades.length > 0) {
+          const buyAreas = trades.map(t => Math.round(t.area||0)).filter(a => a > 0)
+          if(buyAreas.length > 0) {
+            const areaCount = {}
+            buyAreas.forEach(a => areaCount[a] = (areaCount[a]||0) + 1)
+            const dominantArea = parseInt(Object.entries(areaCount).sort((a,b)=>b[1]-a[1])[0][0])
+            const byArea = rentInfo.byArea
+            if(byArea[dominantArea]) {
+              rentDeposit = byArea[dominantArea]
+            } else {
+              const close = Object.entries(byArea).find(([a]) => Math.abs(parseInt(a) - dominantArea) <= 10)
+              rentDeposit = close ? close[1] : 0
+            }
+          }
+        }
+        if(!rentDeposit) rentDeposit = rentInfo.latestDeposit || rentInfo.avgDeposit
+
+        if(rentDeposit > 0 && basePrice > 0) {
+          const jsr = Math.round(rentDeposit / basePrice * 100)
           curApt = {...curApt, jeonseRatio: jsr, rentTrades: rentInfo.trades}
           if($('dtJsr')) { $('dtJsr').textContent = jsr+'%'; $('dtJsr').style.color = jsr>=60?'var(--up)':jsr>=40?'var(--gold)':'var(--muted)' }
           renderTrades(trades, rentInfo.trades)
@@ -2413,17 +2471,85 @@ async function loadHighlights() {
 }
 
 // 지역/정렬 변경 시 재조회
-let _mktMapInst = null
-let _mktView = 'list'
+let _mapInst = null
+let _mapMarkers = []
+let _mapDataCache = []
 
-function setMktView(view) {
-  _mktView = view
-  $('mktListView').style.display = view === 'list' ? 'block' : 'none'
-  $('mktMapView').style.display  = view === 'map'  ? 'block' : 'none'
-  $('mktViewList').style.cssText = view==='list' ? 'flex:1;padding:8px;border-radius:10px;border:1px solid var(--gold);background:rgba(232,200,122,.15);color:var(--gold);font-size:12px;font-weight:600;cursor:pointer' : 'flex:1;padding:8px;border-radius:10px;border:1px solid var(--border);background:none;color:var(--muted);font-size:12px;font-weight:600;cursor:pointer'
-  $('mktViewMap').style.cssText  = view==='map'  ? 'flex:1;padding:8px;border-radius:10px;border:1px solid var(--gold);background:rgba(232,200,122,.15);color:var(--gold);font-size:12px;font-weight:600;cursor:pointer' : 'flex:1;padding:8px;border-radius:10px;border:1px solid var(--border);background:none;color:var(--muted);font-size:12px;font-weight:600;cursor:pointer'
-  if(view === 'map' && mktDataCache.length) renderMktMap(mktDataCache)
+async function renderMapView() {
+  const sgg = $('mapSgg')?.value || ''
+  const sido = $('mapSido')?.value || '서울'
+  const sortVal = $('mapSort')?.value || 'score'
+  const listEl = $('mapAptList')
+  const container = $('mapKakaoMap')
+
+  if(listEl) listEl.innerHTML = '<div style="text-align:center;padding:20px;color:var(--muted);font-size:12px">불러오는 중...</div>'
+
+  // API 호출
+  const url = sgg ? `${PROXY}?type=trade&code=${sgg}` : `${PROXY}?type=trade&sido=${encodeURIComponent(sido)}`
+  const res = await fetch(url, {headers:HDR}).then(r=>r.json()).catch(()=>({ok:false}))
+  if(!res.ok || !res.data?.length) {
+    if(listEl) listEl.innerHTML = '<div style="text-align:center;padding:20px;color:var(--muted);font-size:12px">데이터 없음</div>'
+    return
+  }
+
+  let data = res.data
+  // 정렬
+  if(sortVal==='score') data = data.map(a=>({...a, _score:calcAptScore(a)})).sort((a,b)=>b._score-a._score)
+  else if(sortVal==='price_asc') data.sort((a,b)=>(a.avgPrice||0)-(b.avgPrice||0))
+  else data.sort((a,b)=>(b.avgPrice||0)-(a.avgPrice||0))
+
+  _mapDataCache = data
+  const top30 = data.slice(0, 30)
+  const maxP = Math.max(...top30.map(a=>a.avgPrice||0))
+  const minP = Math.min(...top30.map(a=>a.avgPrice||0))
+
+  // 목록 렌더링
+  if(listEl) {
+    listEl.innerHTML = data.slice(0, 15).map(apt => {
+      const score = apt._score || calcAptScore(apt)
+      const sc = score>=70?'var(--up)':score>=50?'var(--gold)':'var(--down)'
+      const jsr = apt.jeonseRatio ? `${apt.jeonseRatio}%` : '—'
+      return `<div onclick="openSheet(${JSON.stringify(apt).replace(/"/g,'&quot;').replace(/'/g,'&#39;')})" style="background:var(--card);border-radius:12px;padding:12px 14px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;border:1px solid var(--border)">
+        <div>
+          <div style="font-size:13px;font-weight:600">${apt.name}</div>
+          <div style="font-size:11px;color:var(--muted)">${apt.sigungu||apt.dong||''} · 거래 ${apt.count||0}건 · 전세 ${jsr}</div>
+        </div>
+        <div style="text-align:right;flex-shrink:0;margin-left:10px">
+          <div style="font-size:13px;font-weight:700;color:var(--gold)">${fmt(apt.avgPrice)}</div>
+          <div style="font-size:11px;font-weight:700;color:${sc}">${score}점</div>
+        </div>
+      </div>`
+    }).join('')
+  }
+
+  // 카카오맵 마커
+  if(!container || !window.kakao?.maps) return
+  if(!_mapInst) {
+    _mapInst = new kakao.maps.Map(container, {
+      center: new kakao.maps.LatLng(37.5665, 126.9780), level: 8
+    })
+  }
+  _mapMarkers.forEach(m => m.setMap(null))
+  _mapMarkers = []
+
+  const geocoder = new kakao.maps.services.Geocoder()
+  top30.forEach(apt => {
+    const addr = `${apt.sigungu||''} ${apt.dong||''}`
+    geocoder.addressSearch(addr, (result, status) => {
+      if(status !== kakao.maps.services.Status.OK) return
+      const pos = new kakao.maps.LatLng(result[0].y, result[0].x)
+      const score = apt._score || calcAptScore(apt)
+      const ratio = maxP > minP ? ((apt.avgPrice||0) - minP) / (maxP - minP) : 0.5
+      const color = ratio > 0.67 ? '#f87171' : ratio > 0.33 ? '#e8c87a' : '#4ade80'
+      const aptJson = JSON.stringify(apt).replace(/"/g,'&quot;').replace(/'/g,'&#39;')
+      const content = `<div onclick="openSheet(JSON.parse(decodeURIComponent('${encodeURIComponent(JSON.stringify(apt))}')))" style="background:${color};color:#111;padding:3px 7px;border-radius:8px;font-size:10px;font-weight:700;white-space:nowrap;box-shadow:0 2px 6px rgba(0,0,0,.4);cursor:pointer;line-height:1.4">${apt.name.slice(0,5)}<br>${score}점</div>`
+      const overlay = new kakao.maps.CustomOverlay({position:pos, content, yAnchor:1})
+      overlay.setMap(_mapInst)
+      _mapMarkers.push(overlay)
+    })
+  })
 }
+
 
 function renderMktMap(data) {
   const container = $('mktKakaoMap')
@@ -2615,8 +2741,8 @@ function initApp() {
 
   // 탭 버튼
   $('nb-home')?.addEventListener('click', ()=>navTo('home'))
-  $('nb-rec') ?.addEventListener('click', goToRec)
   $('nb-mkt') ?.addEventListener('click', ()=>navTo('mkt'))
+  $('nb-map') ?.addEventListener('click', ()=>navTo('map'))
   $('nb-timing')?.addEventListener('click', ()=>navTo('timing'))
   $('nb-fav') ?.addEventListener('click', ()=>navTo('fav'))
   $('supplyRegion')?.addEventListener('change', (e) => loadSupply(e.target.value))
