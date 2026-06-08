@@ -777,6 +777,13 @@ body{background:#07090f;}
       <div class="stat-card"><div class="stat-label">전세가율</div><div class="stat-val" id="dtJsr" style="color:var(--up)">—</div></div>
       <div class="stat-card"><div class="stat-label">집담 점수</div><div class="stat-val" id="dtScore" style="color:var(--gold)">—</div></div>
     </div>
+
+    <!-- 평형별 전세가율 -->
+    <div id="dtJsrTable" style="display:none;margin-top:10px;background:var(--bg3);border-radius:10px;padding:10px 12px">
+      <div style="font-size:11px;font-weight:600;color:var(--muted);margin-bottom:8px">📊 평형별 전세가율</div>
+      <div id="dtJsrRows"></div>
+    </div>
+    </div>
     
     <div class="det-sec">🤖 AI 매수 분석</div>
     <div class="ai-panel" id="aiPanel">
@@ -1097,6 +1104,40 @@ function openSheet(apt, showFavBtn=true) {
           renderTrades(trades, rentInfo.trades)
           runAiAnalysis(curApt)
         }
+
+        // 평형별 전세가율 표
+        if(rentInfo.byArea && trades.length > 0) {
+          // 매매 평형별 평균가 계산
+          const buyByArea = {}
+          trades.forEach((t) => {
+            const a = Math.round(t.area||0)
+            if(a > 0) { if(!buyByArea[a]) buyByArea[a] = []; buyByArea[a].push(t.price||0) }
+          })
+          const jsrRows = Object.entries(buyByArea).map(([area, prices]) => {
+            const avgBuy = Math.round(prices.reduce((s,p)=>s+p,0)/prices.length)
+            const areaNum = parseInt(area)
+            const rentDeposit2 = rentInfo.byArea[areaNum] ||
+              Object.entries(rentInfo.byArea).find(([a]) => Math.abs(parseInt(a)-areaNum)<=10)?.[1] || 0
+            const jsr2 = rentDeposit2 && avgBuy ? Math.round(rentDeposit2/avgBuy*100) : 0
+            return {area: areaNum, avgBuy, rentDeposit: rentDeposit2, jsr: jsr2}
+          }).filter(r => r.rentDeposit > 0).sort((a,b) => a.area - b.area)
+
+          const tableEl = $('dtJsrTable'), rowsEl = $('dtJsrRows')
+          if(tableEl && rowsEl && jsrRows.length > 0) {
+            tableEl.style.display = 'block'
+            rowsEl.innerHTML = jsrRows.map(r => {
+              const c = r.jsr>=60?'var(--up)':r.jsr>=40?'var(--gold)':'var(--muted)'
+              return `<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid rgba(255,255,255,.05);font-size:12px">
+                <div style="color:var(--muted)">${r.area}㎡ (${Math.round(r.area/3.3)}평)</div>
+                <div style="display:flex;gap:16px;align-items:center">
+                  <div style="color:var(--muted);font-size:11px">매매 ${fmt(r.avgBuy)}</div>
+                  <div style="color:#60a5fa;font-size:11px">전세 ${fmt(r.rentDeposit)}</div>
+                  <div style="font-weight:700;color:${c};min-width:36px;text-align:right">${r.jsr}%</div>
+                </div>
+              </div>`
+            }).join('')
+          }
+        }
       }).catch(()=>{})
   }
 
@@ -1327,6 +1368,7 @@ function runAiAnalysis(apt) {
 function closeSheet() {
   $('sheetOverlay')?.classList.remove('open')
   $('detailSheet')?.classList.remove('open')
+  if($('dtJsrTable')) $('dtJsrTable').style.display = 'none'
   if(history.state?.sheet) history.back()
 }
 
@@ -2026,8 +2068,12 @@ function applyTimingData(d) {
     const aptValueAfter  = myPower * Math.pow(1.04, 5)
     const aptProfit      = aptValueAfter - myPower - totalInterest
     const depositProfit  = myAsset * (Math.pow(1 + (depVal||0)/100, 5) - 1)
-    const kospiAnnual    = kospi12m
-    const stockRate      = kospiAnnual != null ? kospiAnnual/100 : 0.05
+
+    // 코스피/S&P500: 최근 1년 실적은 참고용, 5년 시뮬은 장기 평균 적용
+    const kospiAnnual    = kospi12m  // 참고용 표시
+    const kospiLongTerm  = 0.08      // 코스피 장기 연평균 약 8%
+    const sp500LongTerm  = 0.10      // S&P500 장기 연평균 약 10%
+    const stockRate      = kospiLongTerm
     const stockProfit    = myAsset * (Math.pow(1 + stockRate, 5) - 1)
 
     const fmtRet = v => v != null ? (v>=0?'+':'')+v.toFixed(1)+'%' : '—'
@@ -2095,11 +2141,11 @@ function applyTimingData(d) {
           </div>
           <div style="padding:12px;background:var(--bg3);border-radius:10px">
             <div style="display:flex;justify-content:space-between;margin-bottom:5px">
-              <div style="font-size:12px;font-weight:700">📈 주식 (코스피 연평균)</div>
+              <div style="font-size:12px;font-weight:700">📈 주식 (코스피 장기평균)</div>
               <div style="font-size:13px;font-weight:700;color:var(--up)">+${fmt(stockProfit)}</div>
             </div>
             <div style="font-size:10px;color:var(--muted);line-height:1.7">
-              ${fmt(myAsset)} × 연 ${kospiAnnual!=null?kospiAnnual.toFixed(1)+'% (실제 1년 기준)':'5% (장기 평균 기준)'} × 5년<br>
+              ${fmt(myAsset)} × 연 8% (장기평균) × 5년${kospiAnnual!=null?' · 최근 1년 실적 '+fmtRet(kospiAnnual):''}<br>
               변동성 있음. 원금 손실 가능
             </div>
           </div>
@@ -2465,6 +2511,7 @@ async function loadHighlights() {
             avgPrice: t.price,
             sigungu: t.dong || '',
           }, false))
+          recentEl.appendChild(div)
         })
       }
     }
