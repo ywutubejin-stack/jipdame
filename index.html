@@ -2354,7 +2354,7 @@ async function renderMkt(skipRate = false) {
 
     if(tradeRes?.ok && tradeRes.data?.length) {
       mktDataCache = [...tradeRes.data]
-      if(_mktView === 'map') renderMktMap(mktDataCache)
+      // 지도 탭이 열려있으면 업데이트
       renderMkt._lastSido = sidoVal
       renderMkt._lastRange = ($('mktPeriodFrom')?.value||'') + '_' + ($('mktPeriodTo')?.value||'')
       let data = [...tradeRes.data]
