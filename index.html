@@ -770,7 +770,10 @@ body{background:#07090f;}
       <div id="dtLoanWrap"></div>
     </div>
     <div style="padding:0 18px">
-    <button class="fav-btn add" id="favBtnEl" style="width:100%;padding:14px;border-radius:12px;border:none;cursor:pointer;margin-top:14px;background:rgba(232,200,122,.12);color:var(--gold);border:1px solid rgba(232,200,122,.3);">⭐ 관심 단지 저장</button>
+    <div style="display:flex;gap:8px;margin-top:14px">
+      <button class="fav-btn add" id="favBtnEl" style="flex:1;padding:14px;border-radius:12px;border:none;cursor:pointer;background:rgba(232,200,122,.12);color:var(--gold);border:1px solid rgba(232,200,122,.3);">⭐ 관심 단지 저장</button>
+      <button onclick="shareApt()" style="padding:14px 16px;border-radius:12px;border:1px solid var(--border2);background:rgba(255,255,255,.06);color:var(--muted);cursor:pointer;font-size:14px">공유</button>
+    </div>
     </div>
   </div>
 </div>
@@ -1200,13 +1203,20 @@ function runAiAnalysis(apt) {
     </div>`
 
   // 점수 항목별 바 차트
+  const trendDesc = maxPrice>minPrice*1.1?'상승세':maxPrice>minPrice*1.05?'완만한 상승':'보합'
+  const jsrDesc = jsr>=70?'갭 작음':jsr>=55?'보통':jsr>0?'갭 큼':'데이터 없음'
+  const countDesc = count>=10?'활발':count>=5?'보통':'거래 적음'
+  const ageDesc = age<=5?'신축':age<=10?'준신축':age<=20?'일반':age<=30?'구축':'노후'
+  const locDesc = ['강남구','서초구','송파구','용산구'].some(z=>sg.includes(z))?'핵심입지':['성동구','마포구','광진구'].some(z=>sg.includes(z))?'선호입지':sg.includes('서울')?'서울권':'비서울'
+  const budDesc = power>=(apt.avgPrice||price)?'구매 가능':'자본 부족'
+
   const scoreItems = [
-    { label:'시세 추이',   val: Math.min(100, 50 + (maxPrice>minPrice*1.05?25:10)),    color:'#e8c87a' },
-    { label:'전세가율',    val: jsr>=70?95:jsr>=55?80:jsr>=40?60:jsr>0?35:30,         color:'#4ade80' },
-    { label:'거래량',      val: Math.min(95, count*8+20),                               color:'#4f9cf9' },
-    { label:'건축연도',    val: age<=5?95:age<=10?82:age<=20?65:45,                     color:'#c084fc' },
-    { label:'입지',        val: ['강남구','서초구','송파구','용산구'].some(z=>sg.includes(z))?92:['성동구','마포구','광진구'].some(z=>sg.includes(z))?78:sg.includes('서울')?65:55, color:'#fb923c' },
-    { label:'예산 적합',   val: power>=(apt.avgPrice||price)?90:Math.max(20, 90-Math.round((((apt.avgPrice||price)-power)/(apt.avgPrice||price))*100)), color:'#34d399' },
+    { label:'시세 추이', desc:trendDesc, val: Math.min(100, 50 + (maxPrice>minPrice*1.05?25:10)), color:'#e8c87a' },
+    { label:'전세가율',  desc:jsrDesc,   val: jsr>=70?95:jsr>=55?80:jsr>=40?60:jsr>0?35:30,      color:'#4ade80' },
+    { label:'거래량',    desc:countDesc, val: Math.min(95, count*8+20),                            color:'#4f9cf9' },
+    { label:'건축연도',  desc:ageDesc,   val: age<=5?95:age<=10?82:age<=20?65:45,                  color:'#c084fc' },
+    { label:'입지',      desc:locDesc,   val: ['강남구','서초구','송파구','용산구'].some(z=>sg.includes(z))?92:['성동구','마포구','광진구'].some(z=>sg.includes(z))?78:sg.includes('서울')?65:55, color:'#fb923c' },
+    { label:'예산 적합', desc:budDesc,   val: power>=(apt.avgPrice||price)?90:Math.max(20, 90-Math.round((((apt.avgPrice||price)-power)/(apt.avgPrice||price))*100)), color:'#34d399' },
   ]
   const barsEl = $('aiScoreBars')
   if(barsEl) {
@@ -1219,7 +1229,7 @@ function runAiAnalysis(apt) {
             <div style="flex:1;height:8px;background:rgba(255,255,255,.08);border-radius:4px;overflow:hidden">
               <div style="height:100%;width:${item.val}%;background:${item.color};border-radius:4px;transition:width .6s ease"></div>
             </div>
-            <div style="font-size:11px;font-weight:600;color:${item.color};width:28px;text-align:right">${item.val}</div>
+            <div style="font-size:10px;color:${item.color};width:52px;text-align:right;white-space:nowrap">${item.desc}</div>
           </div>`).join('')}
       </div>`
   }
@@ -1236,6 +1246,32 @@ function closeSheet() {
 try { state.favorites = JSON.parse(localStorage.getItem('jipdame_favs')||'[]') } catch(e){}
 function saveFavs() { try{localStorage.setItem('jipdame_favs',JSON.stringify(state.favorites))}catch(e){} }
 function isFav() { return curApt && state.favorites.some(f=>f.name===curApt.name) }
+
+function showToast(msg, type='info') {
+  let t = $('toastEl')
+  if(!t) {
+    t = document.createElement('div')
+    t.id = 'toastEl'
+    t.style.cssText = 'position:fixed;bottom:90px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--bg3);border:1px solid var(--border2);color:var(--text);padding:10px 20px;border-radius:12px;font-size:13px;z-index:9999;opacity:0;transition:all .3s;white-space:nowrap;box-shadow:0 4px 20px rgba(0,0,0,.4);'
+    document.body.appendChild(t)
+  }
+  t.textContent = msg
+  t.style.borderColor = type==='success'?'rgba(74,222,128,.4)':type==='error'?'rgba(248,113,113,.4)':'var(--border2)'
+  t.style.opacity = '1'
+  t.style.transform = 'translateX(-50%) translateY(0)'
+  clearTimeout(t._timer)
+  t._timer = setTimeout(()=>{ t.style.opacity='0'; t.style.transform='translateX(-50%) translateY(20px)' }, 2000)
+}
+function shareApt() {
+  if(!curApt) return
+  const text = `🏠 ${curApt.name}\n📍 ${curApt.sigungu||curApt.dong||''}\n💰 ${fmt(curApt.avgPrice||0)}\n🏠 전세가율 ${curApt.jeonseRatio||'—'}%\n⭐ 집담 점수 ${calcAptScore(curApt)}점\n\n집담 앱에서 확인: https://ywutubejin-stack.github.io/jipdame/`
+  if(navigator.share) {
+    navigator.share({ title: curApt.name, text }).catch(()=>{})
+  } else {
+    navigator.clipboard.writeText(text).then(()=>showToast('📋 클립보드에 복사됐어요', 'success')).catch(()=>showToast('공유를 지원하지 않는 브라우저예요'))
+  }
+}
+
 function updateFavBtn() {
   const btn = $('favBtnEl')
   if(!btn) return
@@ -2527,12 +2563,12 @@ function initApp() {
     months.forEach((m, idx) => {
       const o1 = document.createElement('option')
       o1.value = m.ym; o1.textContent = m.label
-      if(idx === 3) o1.selected = true // 기본: 4개월 전
+      if(idx === 1) o1.selected = true // 기본: 1개월 전
       periodFrom.appendChild(o1)
 
       const o2 = document.createElement('option')
       o2.value = m.ym; o2.textContent = m.label
-      if(idx === 1) o2.selected = true // 기본: 2개월 전
+      if(idx === 0) o2.selected = true // 기본: 가장 최근
       periodTo.appendChild(o2)
     })
   }
