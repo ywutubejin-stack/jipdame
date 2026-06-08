@@ -1044,7 +1044,7 @@ function openSheet(apt, showFavBtn=true) {
           let rentInfo = null
           for(const k of keys) { if(res.data[k]) { rentInfo = res.data[k]; break } }
           if(rentInfo && apt.avgPrice > 0) {
-            const jsr = Math.round(rentInfo.avgDeposit / apt.avgPrice * 100)
+            const jsr = Math.round((rentInfo.latestDeposit||rentInfo.avgDeposit) / apt.avgPrice * 100)
             if($('dtJsr')) { $('dtJsr').textContent = jsr+'%'; $('dtJsr').style.color = jsr>=60?'var(--up)':jsr>=40?'var(--gold)':'var(--muted)' }
             curApt = {...curApt, jeonseRatio: jsr, rentTrades: rentInfo.trades}
             renderTrades([...apt.trades], rentInfo.trades)
