@@ -445,6 +445,20 @@ body{background:#07090f;}
   <div style="font-family:var(--serif);font-size:20px;font-weight:700;margin-bottom:3px">시장 현황</div>
   <div style="font-size:11px;color:var(--muted);margin-bottom:12px">전국 실거래가 데이터 · 실시간 연동</div>
 
+  <!-- 목록/지도 토글 -->
+  <div style="display:flex;gap:6px;margin-bottom:12px">
+    <button id="mktViewList" onclick="setMktView('list')" style="flex:1;padding:8px;border-radius:10px;border:1px solid var(--gold);background:rgba(232,200,122,.15);color:var(--gold);font-size:12px;font-weight:600;cursor:pointer">📋 목록</button>
+    <button id="mktViewMap" onclick="setMktView('map')" style="flex:1;padding:8px;border-radius:10px;border:1px solid var(--border);background:none;color:var(--muted);font-size:12px;font-weight:600;cursor:pointer">🗺️ 지도</button>
+  </div>
+
+  <!-- 지도 뷰 -->
+  <div id="mktMapView" style="display:none">
+    <div id="mktKakaoMap" style="width:100%;height:420px;border-radius:14px;overflow:hidden;margin-bottom:12px"></div>
+    <div id="mktMapList" style="display:flex;flex-direction:column;gap:8px"></div>
+  </div>
+
+  <!-- 목록 뷰 -->
+  <div id="mktListView">
   <!-- 지역 선택 -->
   <div style="display:flex;gap:6px;margin-bottom:12px;overflow-x:auto;scrollbar-width:none;padding-bottom:2px">
     <select id="mktSido" style="background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:6px 10px;font-size:12px;cursor:pointer;flex-shrink:0">
@@ -533,6 +547,7 @@ body{background:#07090f;}
       <div id="mktRecentList"><div style="color:var(--muted);font-size:11px;text-align:center;padding:20px">로딩 중...</div></div>
     </div>
   </div>
+  </div> <!-- /mktListView -->
 </div>
 </div>
 
@@ -845,7 +860,21 @@ function calcAptScore(apt) {
   if(['강남구','서초구','송파구','용산구'].some(z=>sg.includes(z))) score+=15
   else if(['성동구','마포구','광진구','영등포구'].some(z=>sg.includes(z))) score+=10
   else if(isSeoul) score+=5
-  if(canBuy) score+=10; else score-=10
+
+  // 예산 적합도 — 살 수 없으면 큰 페널티
+  if(price > 0) {
+    const shortfall = power - price
+    if(shortfall >= 0) {
+      score += 10 // 구매 가능
+    } else {
+      const ratio = Math.abs(shortfall) / price
+      if(ratio <= 0.1) score -= 5      // 10% 이내 부족
+      else if(ratio <= 0.3) score -= 15 // 30% 이내 부족
+      else if(ratio <= 0.5) score -= 25 // 50% 이내 부족
+      else score -= 35                   // 50% 초과 부족
+    }
+  }
+  if(!canBuy && superSpec && h>=2) score -= 10 // 규제 지역 주택수 초과
   return Math.min(Math.max(score, 20), 95)
 }
 
@@ -2272,6 +2301,7 @@ async function renderMkt(skipRate = false) {
 
     if(tradeRes?.ok && tradeRes.data?.length) {
       mktDataCache = [...tradeRes.data]
+      if(_mktView === 'map') renderMktMap(mktDataCache)
       renderMkt._lastSido = sidoVal
       renderMkt._lastRange = ($('mktPeriodFrom')?.value||'') + '_' + ($('mktPeriodTo')?.value||'')
       let data = [...tradeRes.data]
@@ -2383,7 +2413,78 @@ async function loadHighlights() {
 }
 
 // 지역/정렬 변경 시 재조회
+let _mktMapInst = null
+let _mktView = 'list'
+
+function setMktView(view) {
+  _mktView = view
+  $('mktListView').style.display = view === 'list' ? 'block' : 'none'
+  $('mktMapView').style.display  = view === 'map'  ? 'block' : 'none'
+  $('mktViewList').style.cssText = view==='list' ? 'flex:1;padding:8px;border-radius:10px;border:1px solid var(--gold);background:rgba(232,200,122,.15);color:var(--gold);font-size:12px;font-weight:600;cursor:pointer' : 'flex:1;padding:8px;border-radius:10px;border:1px solid var(--border);background:none;color:var(--muted);font-size:12px;font-weight:600;cursor:pointer'
+  $('mktViewMap').style.cssText  = view==='map'  ? 'flex:1;padding:8px;border-radius:10px;border:1px solid var(--gold);background:rgba(232,200,122,.15);color:var(--gold);font-size:12px;font-weight:600;cursor:pointer' : 'flex:1;padding:8px;border-radius:10px;border:1px solid var(--border);background:none;color:var(--muted);font-size:12px;font-weight:600;cursor:pointer'
+  if(view === 'map' && mktDataCache.length) renderMktMap(mktDataCache)
+}
+
+function renderMktMap(data) {
+  const container = $('mktKakaoMap')
+  if(!container || !window.kakao?.maps) return
+
+  // 지도 초기화
+  if(!_mktMapInst) {
+    _mktMapInst = new kakao.maps.Map(container, {
+      center: new kakao.maps.LatLng(37.5665, 126.9780),
+      level: 8
+    })
+  }
+
+  // 기존 마커 제거
+  if(_mktMapInst._markers) _mktMapInst._markers.forEach(m => m.setMap(null))
+  _mktMapInst._markers = []
+
+  const geocoder = new kakao.maps.services.Geocoder()
+  const sorted = [...data].sort((a,b)=>(b.avgPrice||0)-(a.avgPrice||0)).slice(0, 30)
+  const maxPrice = sorted[0]?.avgPrice || 1
+  const minPrice = sorted[sorted.length-1]?.avgPrice || 1
+
+  // 지도 목록 렌더링
+  const listEl = $('mktMapList')
+  if(listEl) {
+    listEl.innerHTML = sorted.slice(0,10).map(apt => {
+      const score = calcAptScore(apt)
+      const scoreColor = score>=70?'var(--up)':score>=50?'var(--gold)':'var(--muted)'
+      return `<div onclick="openSheet(${JSON.stringify(apt).replace(/"/g,'&quot;')})" style="background:var(--card);border-radius:12px;padding:12px 14px;cursor:pointer;display:flex;justify-content:space-between;align-items:center">
+        <div>
+          <div style="font-size:13px;font-weight:600">${apt.name}</div>
+          <div style="font-size:11px;color:var(--muted)">${apt.sigungu||apt.dong||''} · ${apt.count||0}건</div>
+        </div>
+        <div style="text-align:right">
+          <div style="font-size:14px;font-weight:700;color:var(--gold)">${fmt(apt.avgPrice)}</div>
+          <div style="font-size:11px;font-weight:600;color:${scoreColor}">${score}점</div>
+        </div>
+      </div>`
+    }).join('')
+  }
+
+  // 주소로 마커 찍기
+  sorted.forEach(apt => {
+    const addr = `${apt.sigungu||''} ${apt.dong||''} ${apt.jibun||''}`
+    geocoder.addressSearch(addr, (result, status) => {
+      if(status !== kakao.maps.services.Status.OK) return
+      const pos = new kakao.maps.LatLng(result[0].y, result[0].x)
+      const ratio = ((apt.avgPrice||0) - minPrice) / (maxPrice - minPrice)
+      const score = calcAptScore(apt)
+      // 가격대별 색상
+      const color = ratio > 0.7 ? '#f87171' : ratio > 0.4 ? '#e8c87a' : '#4ade80'
+      const content = `<div style="background:${color};color:#000;padding:4px 8px;border-radius:8px;font-size:11px;font-weight:700;white-space:nowrap;box-shadow:0 2px 8px rgba(0,0,0,.3);cursor:pointer" onclick="openSheet(${JSON.stringify(apt).replace(/"/g,'&quot;')})">${fmt(apt.avgPrice).replace('억','')}억<br><span style="font-size:10px">${score}점</span></div>`
+      const overlay = new kakao.maps.CustomOverlay({ position: pos, content, yAnchor: 1 })
+      overlay.setMap(_mktMapInst)
+      _mktMapInst._markers.push(overlay)
+    })
+  })
+}
+
 window.onMktChange = () => renderMkt(true)
+
 
 function renderMktTable(data, sortVal) {
   const tb = $('mktTbody')
