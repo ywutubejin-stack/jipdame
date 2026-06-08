@@ -907,7 +907,8 @@ function onSearch(v) {
   clearTimeout(_st)
   _st = setTimeout(async()=>{
     try {
-      const res  = await fetch(`${PROXY}?type=search&query=${encodeURIComponent(v)}`, {headers:HDR})
+      const normQ = v.replace(/\s+/g, '')
+      const res  = await fetch(`${PROXY}?type=search&query=${encodeURIComponent(normQ)}`, {headers:HDR})
       const data = await res.json()
       if(!r) return
       if(!data.ok || !data.data?.length) { r.innerHTML='<div style="padding:12px;font-size:12px;color:var(--muted);text-align:center">검색 결과 없음</div>'; return }
@@ -1036,6 +1037,8 @@ function openSheet(apt, showFavBtn=true) {
         .then(r=>r.json())
         .then(res => {
           if(!res.ok) return
+          if(!$('detailSheet')?.classList.contains('open')) return
+          if(curApt?.name !== apt.name) return
           const normName = n => n?.replace(/\s+/g,'').replace(/아파트$|APT$|apt$/,'').replace(/\(.*?\)/g,'').replace(/[^\w가-힣]/g,'').toLowerCase()||''
           const keys = [apt.sggCd+'_'+apt.name, apt.sggCd+'_'+normName(apt.name), apt.name, normName(apt.name)]
           let rentInfo = null
@@ -1049,10 +1052,14 @@ function openSheet(apt, showFavBtn=true) {
         }).catch(()=>{})
     }
   } else if(apt.sggCd) {
+    const sheetAptName = apt.name
     fetch(`${PROXY}?type=trade&code=${apt.sggCd}`, {headers:HDR})
       .then(r=>r.json())
       .then(res => {
+        // 시트가 닫혔거나 다른 단지로 바뀌었으면 무시
         if(!res.ok) return
+        if(!$('detailSheet')?.classList.contains('open')) return
+        if(curApt?.name !== sheetAptName) return
         const matched = (res.data||[]).filter(a => a.name === apt.name)
         const trades = matched.length ? matched[0].trades||[] : []
         renderTrades(trades)
