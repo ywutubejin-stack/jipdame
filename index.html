@@ -873,12 +873,10 @@ const fmt = v => {
   if (v >= 10000)     return Math.round(v/10000)+'만원'
   return v.toLocaleString()+'원'
 }
-// 구매력 전용: 천만원 단위
+// 구매력 전용: 억원 단위
 const fmtPower = v => {
   if (!v || isNaN(v)) return '—'
-  const uk = Math.round(v / 10000000) // 천만원 단위
-  if(uk >= 10000) return (uk/10000).toFixed(1)+'억원'
-  return uk.toLocaleString()+'천만원'
+  return (v/100000000).toFixed(1)+'억원'
 }
 
 /* ── 지역코드 매핑 ── */
