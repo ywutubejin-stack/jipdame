@@ -1627,10 +1627,7 @@ function setView(v) {
     if(listBtn) { listBtn.style.background='transparent'; listBtn.style.borderColor='var(--border)'; listBtn.style.color='var(--muted)' }
     if(listEl) listEl.style.display='none'
     if(mapEl)  mapEl.style.display='block'
-    // 마커 초기화 후 현재 필터 결과로 재표시
-    kakaoMap?._overlays?.forEach(o => o.setMap(null))
-    if(kakaoMap) kakaoMap._overlays = []
-    initMap()
+    updateMapSgg()
   }
 }
 
