@@ -2604,19 +2604,33 @@ async function renderMapView() {
 
   const geocoder = new kakao.maps.services.Geocoder()
   data.slice(0, 30).forEach(apt => {
-    const addr = (apt.sigungu||sido) + ' ' + (apt.dong||'')
+    // 지번주소 사용 (더 정확)
+    const addrParts = [apt.sigungu||sido, apt.dong||apt.umdNm||'', apt.jibun||''].filter(Boolean)
+    const addr = addrParts.join(' ')
     geocoder.addressSearch(addr, (result, status) => {
-      if(status !== kakao.maps.services.Status.OK) return
-      const pos = new kakao.maps.LatLng(result[0].y, result[0].x)
-      const color = apt._score>=70 ? '#4ade80' : apt._score>=50 ? '#e8c87a' : '#f87171'
-      const txtColor = apt._score>=70 ? '#052e16' : '#111'
-      const aptStr = encodeURIComponent(JSON.stringify(apt))
-      const content = `<div onclick="openSheet(JSON.parse(decodeURIComponent('${aptStr}')))" style="background:${color};color:${txtColor};padding:4px 8px;border-radius:10px;font-size:10px;font-weight:700;white-space:nowrap;box-shadow:0 2px 8px rgba(0,0,0,.4);cursor:pointer;line-height:1.5;text-align:center">${apt.name.length>5?apt.name.slice(0,5)+'..':apt.name}<br>${apt._score}점</div>`
-      const overlay = new kakao.maps.CustomOverlay({position:pos, content, yAnchor:1.2})
-      overlay.setMap(_mapInst)
-      _mapMarkers.push(overlay)
+      if(status !== kakao.maps.services.Status.OK) {
+        // 지번 실패 시 동 주소로 재시도
+        const fallback = (apt.sigungu||sido) + ' ' + (apt.dong||apt.umdNm||'')
+        geocoder.addressSearch(fallback, (r2, s2) => {
+          if(s2 !== kakao.maps.services.Status.OK) return
+          placeMarker(apt, r2[0])
+        })
+        return
+      }
+      placeMarker(apt, result[0])
     })
   })
+
+  function placeMarker(apt, loc) {
+    const pos = new kakao.maps.LatLng(loc.y, loc.x)
+    const color = apt._score>=70 ? '#4ade80' : apt._score>=50 ? '#e8c87a' : '#f87171'
+    const txtColor = apt._score>=70 ? '#052e16' : '#111'
+    const aptStr = encodeURIComponent(JSON.stringify(apt))
+    const content = `<div onclick="openSheet(JSON.parse(decodeURIComponent('${aptStr}')))" style="background:${color};color:${txtColor};padding:4px 8px;border-radius:10px;font-size:10px;font-weight:700;white-space:nowrap;box-shadow:0 2px 8px rgba(0,0,0,.4);cursor:pointer;line-height:1.5;text-align:center">${apt.name.length>5?apt.name.slice(0,5)+'..':apt.name}<br>${apt._score}점</div>`
+    const overlay = new kakao.maps.CustomOverlay({position:pos, content, yAnchor:1.2})
+    overlay.setMap(_mapInst)
+    _mapMarkers.push(overlay)
+  }
 }
 
 
