@@ -873,6 +873,13 @@ const fmt = v => {
   if (v >= 10000)     return Math.round(v/10000)+'만원'
   return v.toLocaleString()+'원'
 }
+// 구매력 전용: 천만원 단위
+const fmtPower = v => {
+  if (!v || isNaN(v)) return '—'
+  const uk = Math.round(v / 10000000) // 천만원 단위
+  if(uk >= 10000) return (uk/10000).toFixed(1)+'억원'
+  return uk.toLocaleString()+'천만원'
+}
 
 /* ── 지역코드 매핑 ── */
 const REGION_CODES = {
@@ -974,11 +981,11 @@ function updateSliderUI() {
   if($('in-asset')  && document.activeElement !== $('in-asset'))   $('in-asset').value  = (a/10000).toFixed(1)
   if($('in-income') && document.activeElement !== $('in-income'))  $('in-income').value = i
   if($('in-rate')   && document.activeElement !== $('in-rate'))    $('in-rate').value   = rt
-  if($('powerMain')) $('powerMain').textContent = fmt(state.power*10000)
+  if($('powerMain')) $('powerMain').textContent = fmtPower(state.power*10000)
   if($('pbAsset'))   $('pbAsset').textContent   = fmt(state.asset*10000)
   if($('pbLoan'))    $('pbLoan').textContent     = fmt(state.maxLoan*10000)
   if($('pbMonthly')) $('pbMonthly').textContent = '월 '+Math.round(state.monthly/10000)+'만'
-  if($('powerSub'))  $('powerSub').textContent  = `자산 ${fmt(state.asset*10000)} + 대출 ${fmt(state.maxLoan*10000)}`
+  if($('powerSub'))  $('powerSub').textContent  = `자산 ${fmtPower(state.asset*10000)} + 대출 ${fmtPower(state.maxLoan*10000)}`
 }
 
 /* ── 네비 ── */
@@ -1334,8 +1341,8 @@ function runAiAnalysis(apt) {
   const dsrL=income/12*.4/(r2*(1+r2)**n2/((1+r2)**n2-1))
   const loan2=Math.min(ltvL,dsrL)
   const power=asset+loan2
-  if(power>=price){reasons.push({icon:'💰',text:`총 구매력 ${fmt(power)}으로 구매 가능`,good:true})}
-  else{reasons.push({icon:'💰',text:`구매력 ${fmt(power-price)} 부족`,good:false})}
+  if(power>=price){reasons.push({icon:'💰',text:`총 구매력 ${fmtPower(power)}으로 구매 가능`,good:true})}
+  else{reasons.push({icon:'💰',text:`구매력 ${fmtPower(Math.abs(power-price))} 부족`,good:false})}
 
   const verdict=score>=80?'✦ 매수 추천':score>=65?'◈ 조건부 추천':score>=50?'△ 관망':'✕ 매수 비추'
   const vColor=score>=80?'var(--up)':score>=65?'var(--gold)':score>=50?'var(--muted)':'var(--down)'
@@ -1831,7 +1838,7 @@ async function goToRec() {
   calcPower()
   const lw = $('recList'); if(!lw) return
   const sp = $('sumPower'), sd = $('sumDetail')
-  if(sp) sp.textContent = fmt(state.power*10000)
+  if(sp) sp.textContent = fmtPower(state.power*10000)
   if(sd) sd.textContent = `자산 ${fmt(state.asset*10000)} + 대출 포함`
   lw.innerHTML='<div style="text-align:center;padding:40px;color:var(--muted)">실거래 데이터 불러오는 중...</div>'
   $('lbar')?.classList.add('on')
