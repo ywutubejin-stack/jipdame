@@ -268,6 +268,31 @@ body{background:#07090f;}
   <div class="s-res" id="sRes"></div>
 </div>
 
+
+<!-- 온보딩 오버레이 -->
+<div id="onboardingOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:9998;align-items:center;justify-content:center;padding:20px">
+  <div style="background:var(--card);border-radius:20px;padding:28px 24px;max-width:360px;width:100%;border:1px solid var(--border2)">
+    <div style="font-size:28px;text-align:center;margin-bottom:12px">🏠</div>
+    <div style="font-family:var(--serif);font-size:20px;font-weight:700;text-align:center;margin-bottom:8px">집담에 오신 걸 환영해요</div>
+    <div style="font-size:13px;color:var(--muted);text-align:center;line-height:1.7;margin-bottom:20px">실거래 데이터와 AI 분석으로<br>내 상황에 맞는 아파트를 찾아드려요</div>
+    <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:24px">
+      <div style="display:flex;align-items:center;gap:12px;background:var(--bg3);padding:12px;border-radius:12px">
+        <span style="font-size:20px">💰</span>
+        <div><div style="font-size:13px;font-weight:600">내 조건 입력</div><div style="font-size:11px;color:var(--muted)">자산·소득·대출 조건 설정</div></div>
+      </div>
+      <div style="display:flex;align-items:center;gap:12px;background:var(--bg3);padding:12px;border-radius:12px">
+        <span style="font-size:20px">⭐</span>
+        <div><div style="font-size:13px;font-weight:600">추천 단지 확인</div><div style="font-size:11px;color:var(--muted)">점수순 단지 탐색 + 지도 보기</div></div>
+      </div>
+      <div style="display:flex;align-items:center;gap:12px;background:var(--bg3);padding:12px;border-radius:12px">
+        <span style="font-size:20px">📊</span>
+        <div><div style="font-size:13px;font-weight:600">시장 분석</div><div style="font-size:11px;color:var(--muted)">거래량·전세가율·타이밍 지표</div></div>
+      </div>
+    </div>
+    <button onclick="closeOnboarding()" style="width:100%;padding:14px;border-radius:14px;border:none;background:var(--gold);color:#111;font-size:15px;font-weight:700;cursor:pointer">시작하기</button>
+  </div>
+</div>
+
 <div class="scroll" id="scrollEl">
 
 <div class="page active" id="page-home">
@@ -489,7 +514,7 @@ body{background:#07090f;}
 <div class="page" id="page-mkt">
 <div class="mkt-page">
   <div style="font-family:var(--serif);font-size:20px;font-weight:700;margin-bottom:3px">시장 현황</div>
-  <div style="font-size:11px;color:var(--muted);margin-bottom:12px">전국 실거래가 데이터 · 실시간 연동</div>
+  <div style="font-size:11px;color:var(--muted);margin-bottom:12px">전국 실거래가 데이터 · 실시간 연동 · <span id="mktDataDate" style="color:var(--gold)"></span></div>
 
   <!-- 지역 선택 -->
   <div style="display:flex;gap:6px;margin-bottom:12px;overflow-x:auto;scrollbar-width:none;padding-bottom:2px">
@@ -863,12 +888,27 @@ const REGION_CODES = {
 }
 
 /* ── 상태 ── */
-const state = {
-  purpose:'live', houseCount:0,
-  asset:30000, income:6000, rate:3.6,
-  power:0, maxLoan:0, monthly:0,
-  regions:['서울'], sizes:['30'], favorites:[],
+// localStorage에서 내 조건 복원
+function loadUserState() {
+  try {
+    const saved = JSON.parse(localStorage.getItem('jipdame_state') || '{}')
+    return {
+      purpose: saved.purpose || 'live',
+      houseCount: saved.houseCount || 0,
+      asset: saved.asset || 30000,
+      income: saved.income || 6000,
+      rate: saved.rate || 3.6,
+      power: 0, maxLoan: 0, monthly: 0,
+      regions: saved.regions || ['서울'],
+      sizes: saved.sizes || ['30'],
+      favorites: [],
+    }
+  } catch(e) { return { purpose:'live', houseCount:0, asset:30000, income:6000, rate:3.6, power:0, maxLoan:0, monthly:0, regions:['서울'], sizes:['30'], favorites:[] } }
 }
+function saveUserState() {
+  try { localStorage.setItem('jipdame_state', JSON.stringify({ purpose:state.purpose, houseCount:state.houseCount, asset:state.asset, income:state.income, rate:state.rate, regions:state.regions, sizes:state.sizes })) } catch(e) {}
+}
+const state = loadUserState()
 
 /* ── 공통 단지 점수 계산 ── */
 function calcAptScore(apt) {
@@ -1384,6 +1424,28 @@ function showToast(msg, type='info') {
   clearTimeout(t._timer)
   t._timer = setTimeout(()=>{ t.style.opacity='0'; t.style.transform='translateX(-50%) translateY(20px)' }, 2000)
 }
+function closeOnboarding() {
+  const el = $('onboardingOverlay')
+  if(el) { el.style.opacity='0'; el.style.transition='opacity .3s'; setTimeout(()=>el.style.display='none',300) }
+  try { localStorage.setItem('jipdame_visited', '1') } catch(e) {}
+}
+
+function showOnboardingIfNew() {
+  try {
+    if(!localStorage.getItem('jipdame_visited')) {
+      const el = $('onboardingOverlay')
+      if(el) { el.style.display='flex'; el.style.opacity='0'; requestAnimationFrame(()=>{ el.style.opacity='1'; el.style.transition='opacity .3s' }) }
+    }
+  } catch(e) {}
+}
+
+function updateMktDataDate() {
+  const el = $('mktDataDate')
+  if(!el) return
+  const now = new Date()
+  el.textContent = `${now.getFullYear()}.${String(now.getMonth()+1).padStart(2,'0')} 기준`
+}
+
 function shareApt() {
   if(!curApt) return
   const text = `🏠 ${curApt.name}\n📍 ${curApt.sigungu||curApt.dong||''}\n💰 ${fmt(curApt.avgPrice||0)}\n🏠 전세가율 ${curApt.jeonseRatio||'—'}%\n⭐ 집담 점수 ${calcAptScore(curApt)}점\n\n집담 앱에서 확인: https://ywutubejin-stack.github.io/jipdame/`
@@ -1403,8 +1465,17 @@ function updateFavBtn() {
 function toggleFav() {
   if(!curApt) return
   if(isFav()) state.favorites = state.favorites.filter(f=>f.name!==curApt.name)
-  else state.favorites.push(curApt)
+  else {
+    // 저장 시 현재 가격과 날짜 기록
+    state.favorites.push({
+      ...curApt,
+      savedPrice: curApt.avgPrice || curApt.price || 0,
+      savedDate: new Date().toISOString().slice(0,10)
+    })
+  }
   saveFavs(); updateFavBtn()
+  const isFavNow = isFav()
+  showToast(isFavNow ? '⭐ 관심단지에 추가됐어요' : '관심단지에서 삭제됐어요', isFavNow ? 'success' : 'info')
   if(document.getElementById('page-fav')?.classList.contains('active')) renderFavs()
 }
 function removeFav(name) {
@@ -1422,11 +1493,17 @@ function renderFavs() {
   el.innerHTML = ''
   state.favorites.forEach(f=>{
     const d=document.createElement('div'); d.className='fav-item'
+    const savedPrice = f.savedPrice || f.avgPrice || 0
+    const curPrice = f.avgPrice || 0
+    const priceDiff = savedPrice && curPrice ? curPrice - savedPrice : 0
+    const pricePct = savedPrice ? Math.round(priceDiff/savedPrice*100*10)/10 : 0
+    const priceTag = priceDiff !== 0 ? `<span style="font-size:11px;font-weight:600;color:${priceDiff>0?'var(--up)':'var(--down)'};margin-left:6px">${priceDiff>0?'▲':'▼'}${Math.abs(pricePct)}%</span>` : ''
+    const savedDateTag = f.savedDate ? `<span style="font-size:10px;color:var(--muted)"> · ${f.savedDate} 저장</span>` : ''
     d.innerHTML=`
       <div class="fi-header" style="align-items:center">
         <div style="flex:1;cursor:pointer">
           <div class="fi-name">${f.name}</div>
-          <div class="fi-loc">${f.dong||''} · ${fmt(f.avgPrice||0)}</div>
+          <div class="fi-loc">${f.dong||''} · ${fmt(f.avgPrice||0)}${priceTag}${savedDateTag}</div>
         </div>
         <button onclick="event.stopPropagation();removeFav('${f.name}')" style="background:rgba(248,113,113,.12);border:1px solid rgba(248,113,113,.3);color:var(--down);border-radius:8px;padding:6px 10px;font-size:11px;cursor:pointer;flex-shrink:0">삭제</button>
       </div>`
@@ -2784,9 +2861,16 @@ function initChips() {
 
 /* ── 초기화 ── */
 function initApp() {
+  showOnboardingIfNew()
+  updateMktDataDate()
   // 슬라이더 ↔ 입력칸 동기화
   const sl = { asset:$('sl-asset'), income:$('sl-income'), rate:$('sl-rate') }
   const inp = { asset:$('in-asset'), income:$('in-income'), rate:$('in-rate') }
+
+  // 슬라이더 초기값 복원
+  if(sl.asset) sl.asset.value = state.asset
+  if(sl.income) sl.income.value = state.income
+  if(sl.rate) sl.rate.value = state.rate
 
   const syncSl = (key, min, max, parse) => {
     const fromSlider = () => {
