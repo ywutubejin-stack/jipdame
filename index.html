@@ -2786,23 +2786,33 @@ async function renderMapView() {
     '41190':'경기 부천시','41270':'경기 안산시','41590':'경기 화성시','41360':'경기 남양주시',
   }
 
+  const geocoder = new kakao.maps.services.Geocoder()
   const ps = new kakao.maps.services.Places()
+
   data.slice(0, 30).forEach(apt => {
-    // 구 정보 조합 (sigungu 또는 sggCd로 역조회)
     const region = apt.sigungu || SGG_NAMES[apt.sggCd] || sido
-    const query = `${region} ${apt.name}`
-    ps.keywordSearch(query, (result, status) => {
-      if(status === kakao.maps.services.Status.OK && result.length > 0) {
-        placeMarker(apt, {y: result[0].y, x: result[0].x})
-      } else {
-        // fallback: 구+동+지번 주소
-        const geocoder = new kakao.maps.services.Geocoder()
-        const addr = [region, apt.dong||apt.umdNm||'', apt.jibun||''].filter(Boolean).join(' ')
-        geocoder.addressSearch(addr, (r2, s2) => {
-          if(s2 === kakao.maps.services.Status.OK) placeMarker(apt, {y: r2[0].y, x: r2[0].x})
-        })
-      }
-    })
+    const dong = apt.dong || apt.umdNm || ''
+    const jibun = apt.jibun || ''
+
+    if(jibun) {
+      // 지번주소로 정확한 위치 검색
+      const addr = `${region} ${dong} ${jibun}`.trim()
+      geocoder.addressSearch(addr, (result, status) => {
+        if(status === kakao.maps.services.Status.OK) {
+          placeMarker(apt, {y: result[0].y, x: result[0].x})
+        } else {
+          // fallback: 키워드 검색
+          ps.keywordSearch(`${region} ${apt.name}`, (r2, s2) => {
+            if(s2 === kakao.maps.services.Status.OK) placeMarker(apt, {y: r2[0].y, x: r2[0].x})
+          })
+        }
+      })
+    } else {
+      // 지번 없으면 키워드 검색
+      ps.keywordSearch(`${region} ${dong} ${apt.name}`, (result, status) => {
+        if(status === kakao.maps.services.Status.OK) placeMarker(apt, {y: result[0].y, x: result[0].x})
+      })
+    }
   })
 
   function placeMarker(apt, loc) {
