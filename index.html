@@ -2690,7 +2690,12 @@ function updateMapSgg() {
   renderMapView()
 }
 
-async function renderMapView() {
+let _mapRenderTimer = null
+function renderMapView() {
+  clearTimeout(_mapRenderTimer)
+  _mapRenderTimer = setTimeout(_renderMapViewImpl, 300)
+}
+async function _renderMapViewImpl() {
   const sido = $('filterSido')?.value || '서울'
   const sgg = $('filterSigungu')?.value || ''
   const sortVal = ($('sortBy')?.value || 'score_desc').replace('_desc','').replace('jsr','jsr')
@@ -2770,31 +2775,55 @@ async function renderMapView() {
   const geocoder = new kakao.maps.services.Geocoder()
   const ps = new kakao.maps.services.Places()
 
-  data.slice(0, 30).forEach(apt => {
+  // 좌표 캐시 (전역)
+  if(!window._geoCache) window._geoCache = {}
+  const geoCache = window._geoCache
+
+  // 순차 처리로 부하 방지 (모바일 멈춤 방지), 마커 15개로 제한
+  const targets = data.slice(0, 15)
+  let idx = 0
+
+  function processNext() {
+    if(idx >= targets.length) return
+    const apt = targets[idx]
+    idx++
+
     const region = apt.sigungu || SGG_NAMES[apt.sggCd] || sido
     const dong = apt.dong || apt.umdNm || ''
     const jibun = apt.jibun || ''
+    const cacheKey = `${region}_${dong}_${jibun}_${apt.name}`
+
+    // 캐시 확인
+    if(geoCache[cacheKey]) {
+      placeMarker(apt, geoCache[cacheKey])
+      setTimeout(processNext, 30)
+      return
+    }
+
+    const onFound = (loc) => {
+      geoCache[cacheKey] = loc
+      placeMarker(apt, loc)
+      setTimeout(processNext, 100) // 다음 요청까지 텀
+    }
+    const onFail = () => setTimeout(processNext, 30)
 
     if(jibun) {
-      // 지번주소로 정확한 위치 검색
       const addr = `${region} ${dong} ${jibun}`.trim()
       geocoder.addressSearch(addr, (result, status) => {
-        if(status === kakao.maps.services.Status.OK) {
-          placeMarker(apt, {y: result[0].y, x: result[0].x})
-        } else {
-          // fallback: 키워드 검색
-          ps.keywordSearch(`${region} ${apt.name}`, (r2, s2) => {
-            if(s2 === kakao.maps.services.Status.OK) placeMarker(apt, {y: r2[0].y, x: r2[0].x})
-          })
-        }
+        if(status === kakao.maps.services.Status.OK) onFound({y: result[0].y, x: result[0].x})
+        else ps.keywordSearch(`${region} ${apt.name}`, (r2, s2) => {
+          if(s2 === kakao.maps.services.Status.OK) onFound({y: r2[0].y, x: r2[0].x})
+          else onFail()
+        })
       })
     } else {
-      // 지번 없으면 키워드 검색
       ps.keywordSearch(`${region} ${dong} ${apt.name}`, (result, status) => {
-        if(status === kakao.maps.services.Status.OK) placeMarker(apt, {y: result[0].y, x: result[0].x})
+        if(status === kakao.maps.services.Status.OK) onFound({y: result[0].y, x: result[0].x})
+        else onFail()
       })
     }
-  })
+  }
+  processNext()
 
   function placeMarker(apt, loc) {
     const pos = new kakao.maps.LatLng(loc.y, loc.x)
