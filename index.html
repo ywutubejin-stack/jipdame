@@ -242,6 +242,17 @@ body{background:#07090f;}
   .metrics{grid-template-columns:repeat(3,1fr);}
   .power-breakdown{grid-template-columns:repeat(4,1fr);}
 }
+@media(min-width:960px){
+  #app { max-width:960px !important; }
+  .home-page { display:grid; grid-template-columns:1fr 1fr; gap:24px; }
+  .home-page > *:first-child { grid-column:1/-1; }
+  .rec-page .rec-header { grid-column:1/-1; }
+  .fav-page { display:grid; grid-template-columns:1fr 1fr; gap:16px; align-items:start; }
+  .fav-page > *:first-child, .fav-page > *:nth-child(2), .fav-page > *:nth-child(3) { grid-column:1/-1; }
+  .mkt-page .metrics { grid-template-columns:repeat(4,1fr); }
+  #recList { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+  #recList .rc { margin:0; }
+}
 </style>
 </head>
 <body>
@@ -746,9 +757,24 @@ body{background:#07090f;}
 </div>
 <div class="fav-page">
   <div style="font-family:var(--serif);font-size:20px;font-weight:700;margin-bottom:3px">관심 단지</div>
-  <div style="font-size:11px;color:var(--muted);margin-bottom:14px">즐겨찾기한 등록 아파트</div>
+  <div style="font-size:11px;color:var(--muted);margin-bottom:10px">즐겨찾기한 등록 아파트 · 2개 선택 후 비교 가능</div>
+  <div id="compareBar" style="display:none;background:var(--bg3);border-radius:12px;padding:10px 14px;margin-bottom:12px;align-items:center;justify-content:space-between">
+    <div style="font-size:12px;color:var(--muted)"><span id="compareCount">0</span>개 선택됨</div>
+    <button onclick="openCompare()" id="compareBtn" style="padding:8px 16px;border-radius:8px;border:none;background:var(--gold);color:#111;font-size:12px;font-weight:700;cursor:pointer;opacity:.4" disabled>비교하기</button>
+  </div>
   <div id="favList"></div>
 </div>
+</div>
+
+<!-- 비교 모달 -->
+<div id="compareModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:9997;overflow-y:auto;padding:20px">
+  <div style="background:var(--card);border-radius:20px;padding:20px;max-width:500px;margin:0 auto;border:1px solid var(--border2)">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+      <div style="font-size:16px;font-weight:700">단지 비교</div>
+      <button onclick="$('compareModal').style.display='none'" style="background:none;border:none;color:var(--muted);font-size:22px;cursor:pointer">✕</button>
+    </div>
+    <div id="compareContent"></div>
+  </div>
 </div>
 
 <div class="bnav">
@@ -1371,27 +1397,33 @@ function runAiAnalysis(apt) {
   const locDesc = ['강남구','서초구','송파구','용산구'].some(z=>sg.includes(z))?'핵심입지':['성동구','마포구','광진구'].some(z=>sg.includes(z))?'선호입지':sg.includes('서울')?'서울권':'비서울'
   const budDesc = power>=(apt.avgPrice||price)?'구매 가능':'자본 부족'
 
-  const scoreItems = [
-    { label:'시세 추이', desc:trendDesc, val: Math.min(100, 50 + (maxPrice>minPrice*1.05?25:10)), color:'#e8c87a' },
-    { label:'전세가율',  desc:jsrDesc,   val: jsr>=70?95:jsr>=55?80:jsr>=40?60:jsr>0?35:30,      color:'#4ade80' },
-    { label:'거래량',    desc:countDesc, val: Math.min(95, count*8+20),                            color:'#4f9cf9' },
-    { label:'건축연도',  desc:ageDesc,   val: age<=5?95:age<=10?82:age<=20?65:45,                  color:'#c084fc' },
-    { label:'입지',      desc:locDesc,   val: ['강남구','서초구','송파구','용산구'].some(z=>sg.includes(z))?92:['성동구','마포구','광진구'].some(z=>sg.includes(z))?78:sg.includes('서울')?65:55, color:'#fb923c' },
-    { label:'예산 적합', desc:budDesc,   val: power>=(apt.avgPrice||price)?90:Math.max(20, 90-Math.round((((apt.avgPrice||price)-power)/(apt.avgPrice||price))*100)), color:'#34d399' },
+  // 항목별 실제 점수 (만점 기준)
+  const scoreWeights = [
+    { label:'시세 추이', desc:trendDesc, val: Math.min(100, 50 + (maxPrice>minPrice*1.05?25:10)), color:'#e8c87a', max:15, earned: maxPrice>minPrice*1.05?12:5 },
+    { label:'전세가율',  desc:jsrDesc,   val: jsr>=70?95:jsr>=55?80:jsr>=40?60:jsr>0?35:30,      color:'#4ade80', max:15, earned: jsr>=70?15:jsr>=55?10:jsr>=40?3:jsr>0?-5:0 },
+    { label:'거래량',    desc:countDesc, val: Math.min(95, count*8+20),                            color:'#4f9cf9', max:15, earned: count>=10?15:count>=5?8:-5 },
+    { label:'건축연도',  desc:ageDesc,   val: age<=5?95:age<=10?82:age<=20?65:45,                  color:'#c084fc', max:15, earned: age<=5?15:age<=10?10:age<=20?5:-5 },
+    { label:'입지',      desc:locDesc,   val: ['강남구','서초구','송파구','용산구'].some(z=>sg.includes(z))?92:['성동구','마포구','광진구'].some(z=>sg.includes(z))?78:sg.includes('서울')?65:55, color:'#fb923c', max:15, earned: ['강남구','서초구','송파구','용산구'].some(z=>sg.includes(z))?15:['성동구','마포구','광진구'].some(z=>sg.includes(z))?10:sg.includes('서울')?5:0 },
+    { label:'예산 적합', desc:budDesc,   val: power>=(apt.avgPrice||price)?90:Math.max(20, 90-Math.round((((apt.avgPrice||price)-power)/(apt.avgPrice||price))*100)), color:'#34d399', max:10,
+      earned: power>=(apt.avgPrice||price)?10: (() => { const ratio=((apt.avgPrice||price)-power)/(apt.avgPrice||price); return ratio<=0.1?-5:ratio<=0.3?-15:ratio<=0.5?-25:-35 })() },
   ]
   const barsEl = $('aiScoreBars')
   if(barsEl) {
     barsEl.innerHTML = `
-      <div style="font-size:11px;font-weight:600;color:var(--muted);margin-bottom:8px">📊 항목별 점수</div>
+      <div style="font-size:11px;font-weight:600;color:var(--muted);margin-bottom:8px">📊 항목별 점수 <span style="font-weight:400;color:var(--muted)">(기본 50점 + 항목별 가감)</span></div>
       <div style="display:flex;flex-direction:column;gap:6px">
-        ${scoreItems.map(item => `
+        ${scoreWeights.map(item => `
           <div style="display:flex;align-items:center;gap:8px">
             <div style="font-size:11px;color:var(--muted);width:54px;flex-shrink:0">${item.label}</div>
             <div style="flex:1;height:8px;background:rgba(255,255,255,.08);border-radius:4px;overflow:hidden">
               <div style="height:100%;width:${item.val}%;background:${item.color};border-radius:4px;transition:width .6s ease"></div>
             </div>
-            <div style="font-size:10px;color:${item.color};width:52px;text-align:right;white-space:nowrap">${item.desc}</div>
+            <div style="font-size:10px;color:${item.color};width:32px;text-align:right;white-space:nowrap">${item.desc}</div>
+            <div style="font-size:10px;font-weight:700;color:${item.earned>0?item.color:item.earned<0?'var(--down)':'var(--muted)'};width:28px;text-align:right">${item.earned>0?'+':''}${item.earned}</div>
           </div>`).join('')}
+      </div>
+      <div style="margin-top:8px;padding-top:8px;border-top:1px solid rgba(255,255,255,.06);font-size:11px;color:var(--muted)">
+        기본 50점 ${scoreWeights.map(i=>i.earned).reduce((a,b)=>a+b,0)>=0?'+':''}${scoreWeights.map(i=>i.earned).reduce((a,b)=>a+b,0)}점 = <span style="font-weight:700;color:var(--gold)">${Math.max(0,Math.min(100,50+scoreWeights.map(i=>i.earned).reduce((a,b)=>a+b,0)))}점</span>
       </div>`
   }
 
@@ -1424,6 +1456,64 @@ function showToast(msg, type='info') {
   clearTimeout(t._timer)
   t._timer = setTimeout(()=>{ t.style.opacity='0'; t.style.transform='translateX(-50%) translateY(20px)' }, 2000)
 }
+let compareSelected = []
+
+function toggleCompare(name) {
+  const idx = compareSelected.indexOf(name)
+  if(idx >= 0) compareSelected.splice(idx, 1)
+  else if(compareSelected.length < 2) compareSelected.push(name)
+  else { showToast('최대 2개까지 선택 가능해요'); return }
+  updateCompareBar()
+  renderFavs()
+}
+
+function updateCompareBar() {
+  const bar = $('compareBar')
+  const btn = $('compareBtn')
+  const cnt = $('compareCount')
+  if(!bar) return
+  if(compareSelected.length > 0) bar.style.display = 'flex'
+  else bar.style.display = 'none'
+  if(cnt) cnt.textContent = compareSelected.length
+  if(btn) { btn.disabled = compareSelected.length < 2; btn.style.opacity = compareSelected.length >= 2 ? '1' : '.4' }
+}
+
+function openCompare() {
+  if(compareSelected.length < 2) return
+  const apts = compareSelected.map(n => state.favorites.find(f => f.name === n)).filter(Boolean)
+  if(apts.length < 2) return
+  const [a, b] = apts
+  const rows = [
+    { label:'평균 매매가', va: fmt(a.avgPrice||0), vb: fmt(b.avgPrice||0) },
+    { label:'전세가율', va: a.jeonseRatio ? a.jeonseRatio+'%' : '—', vb: b.jeonseRatio ? b.jeonseRatio+'%' : '—' },
+    { label:'거래량', va: (a.count||0)+'건', vb: (b.count||0)+'건' },
+    { label:'건축연도', va: a.built ? a.built+'년' : '—', vb: b.built ? b.built+'년' : '—' },
+    { label:'집담 점수', va: calcAptScore(a)+'점', vb: calcAptScore(b)+'점', highlight: true },
+    { label:'위치', va: a.dong||a.sigungu||'—', vb: b.dong||b.sigungu||'—' },
+    { label:'저장 시 가격', va: fmt(a.savedPrice||0), vb: fmt(b.savedPrice||0) },
+  ]
+  const sa = calcAptScore(a), sb = calcAptScore(b)
+  const el = $('compareContent')
+  if(!el) return
+  el.innerHTML = `
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:16px">
+      <div></div>
+      <div style="text-align:center;font-size:13px;font-weight:700;color:var(--gold)">${a.name}</div>
+      <div style="text-align:center;font-size:13px;font-weight:700;color:#60a5fa">${b.name}</div>
+    </div>
+    ${rows.map(r => `
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;padding:10px 0;border-bottom:1px solid rgba(255,255,255,.06);align-items:center">
+        <div style="font-size:11px;color:var(--muted)">${r.label}</div>
+        <div style="text-align:center;font-size:12px;font-weight:${r.highlight?'700':'500'};color:${r.highlight?(sa>=sb?'var(--up)':'var(--muted)'):'var(--text)'}">${r.va}</div>
+        <div style="text-align:center;font-size:12px;font-weight:${r.highlight?'700':'500'};color:${r.highlight?(sb>=sa?'var(--up)':'var(--muted)'):'var(--text)'}">${r.vb}</div>
+      </div>`).join('')}
+    <div style="margin-top:16px;display:grid;grid-template-columns:1fr 1fr;gap:8px">
+      <button onclick="openSheet(${JSON.stringify(a).replace(/"/g,'&quot;')});$('compareModal').style.display='none'" style="padding:12px;border-radius:10px;border:1px solid var(--gold);background:rgba(232,200,122,.1);color:var(--gold);font-size:12px;font-weight:600;cursor:pointer">${a.name} 상세보기</button>
+      <button onclick="openSheet(${JSON.stringify(b).replace(/"/g,'&quot;')});$('compareModal').style.display='none'" style="padding:12px;border-radius:10px;border:1px solid #60a5fa;background:rgba(96,165,250,.1);color:#60a5fa;font-size:12px;font-weight:600;cursor:pointer">${b.name} 상세보기</button>
+    </div>`
+  $('compareModal').style.display = 'block'
+}
+
 function closeOnboarding() {
   const el = $('onboardingOverlay')
   if(el) { el.style.opacity='0'; el.style.transition='opacity .3s'; setTimeout(()=>el.style.display='none',300) }
@@ -1499,15 +1589,19 @@ function renderFavs() {
     const pricePct = savedPrice ? Math.round(priceDiff/savedPrice*100*10)/10 : 0
     const priceTag = priceDiff !== 0 ? `<span style="font-size:11px;font-weight:600;color:${priceDiff>0?'var(--up)':'var(--down)'};margin-left:6px">${priceDiff>0?'▲':'▼'}${Math.abs(pricePct)}%</span>` : ''
     const savedDateTag = f.savedDate ? `<span style="font-size:10px;color:var(--muted)"> · ${f.savedDate} 저장</span>` : ''
+    const isSelected = compareSelected.includes(f.name)
     d.innerHTML=`
       <div class="fi-header" style="align-items:center">
+        <div onclick="toggleCompare('${f.name}')" style="width:24px;height:24px;border-radius:6px;border:2px solid ${isSelected?'var(--gold)':'var(--border)'};background:${isSelected?'rgba(232,200,122,.2)':'transparent'};display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;margin-right:8px">
+          ${isSelected?'<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#e8c87a" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>':''}
+        </div>
         <div style="flex:1;cursor:pointer">
           <div class="fi-name">${f.name}</div>
           <div class="fi-loc">${f.dong||''} · ${fmt(f.avgPrice||0)}${priceTag}${savedDateTag}</div>
         </div>
         <button onclick="event.stopPropagation();removeFav('${f.name}')" style="background:rgba(248,113,113,.12);border:1px solid rgba(248,113,113,.3);color:var(--down);border-radius:8px;padding:6px 10px;font-size:11px;cursor:pointer;flex-shrink:0">삭제</button>
       </div>`
-    d.querySelector('.fi-header > div')?.addEventListener('click',()=>openSheet(f))
+    d.querySelector('.fi-header > div:nth-child(2)')?.addEventListener('click',()=>openSheet(f))
     el.appendChild(d)
   })
 }
@@ -2679,22 +2773,21 @@ async function renderMapView() {
   _mapMarkers.forEach(m => m.setMap(null))
   _mapMarkers = []
 
-  const geocoder = new kakao.maps.services.Geocoder()
+  const ps = new kakao.maps.services.Places()
   data.slice(0, 30).forEach(apt => {
-    // 지번주소 사용 (더 정확)
-    const addrParts = [apt.sigungu||sido, apt.dong||apt.umdNm||'', apt.jibun||''].filter(Boolean)
-    const addr = addrParts.join(' ')
-    geocoder.addressSearch(addr, (result, status) => {
-      if(status !== kakao.maps.services.Status.OK) {
-        // 지번 실패 시 동 주소로 재시도
-        const fallback = (apt.sigungu||sido) + ' ' + (apt.dong||apt.umdNm||'')
-        geocoder.addressSearch(fallback, (r2, s2) => {
-          if(s2 !== kakao.maps.services.Status.OK) return
-          placeMarker(apt, r2[0])
+    // 단지명으로 키워드 검색 (주소보다 정확)
+    const query = `${apt.sigungu||sido} ${apt.name}`
+    ps.keywordSearch(query, (result, status) => {
+      if(status === kakao.maps.services.Status.OK && result.length > 0) {
+        placeMarker(apt, {y: result[0].y, x: result[0].x})
+      } else {
+        // fallback: 지번주소로 geocoding
+        const geocoder = new kakao.maps.services.Geocoder()
+        const addr = [apt.sigungu||sido, apt.dong||apt.umdNm||'', apt.jibun||''].filter(Boolean).join(' ')
+        geocoder.addressSearch(addr, (r2, s2) => {
+          if(s2 === kakao.maps.services.Status.OK) placeMarker(apt, {y: r2[0].y, x: r2[0].x})
         })
-        return
       }
-      placeMarker(apt, result[0])
     })
   })
 
