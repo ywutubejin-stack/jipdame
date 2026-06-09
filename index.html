@@ -2773,17 +2773,31 @@ async function renderMapView() {
   _mapMarkers.forEach(m => m.setMap(null))
   _mapMarkers = []
 
+  // sggCd → 지역명 매핑 (앱용)
+  const SGG_NAMES = {
+    '11680':'서울 강남구','11650':'서울 서초구','11710':'서울 송파구','11170':'서울 용산구',
+    '11440':'서울 마포구','11200':'서울 성동구','11740':'서울 강동구','11560':'서울 영등포구',
+    '11590':'서울 동작구','11380':'서울 은평구','11350':'서울 노원구','11215':'서울 광진구',
+    '11530':'서울 구로구','11470':'서울 강서구','11500':'서울 양천구','11620':'서울 관악구',
+    '11545':'서울 금천구','11230':'서울 동대문구','11260':'서울 중랑구','11290':'서울 성북구',
+    '11305':'서울 강북구','11320':'서울 도봉구','11110':'서울 종로구','11140':'서울 중구',
+    '11410':'서울 서대문구','11170':'서울 용산구',
+    '41110':'경기 수원시','41130':'경기 성남시','41280':'경기 고양시','41460':'경기 용인시',
+    '41190':'경기 부천시','41270':'경기 안산시','41590':'경기 화성시','41360':'경기 남양주시',
+  }
+
   const ps = new kakao.maps.services.Places()
   data.slice(0, 30).forEach(apt => {
-    // 단지명으로 키워드 검색 (주소보다 정확)
-    const query = `${apt.sigungu||sido} ${apt.name}`
+    // 구 정보 조합 (sigungu 또는 sggCd로 역조회)
+    const region = apt.sigungu || SGG_NAMES[apt.sggCd] || sido
+    const query = `${region} ${apt.name}`
     ps.keywordSearch(query, (result, status) => {
       if(status === kakao.maps.services.Status.OK && result.length > 0) {
         placeMarker(apt, {y: result[0].y, x: result[0].x})
       } else {
-        // fallback: 지번주소로 geocoding
+        // fallback: 구+동+지번 주소
         const geocoder = new kakao.maps.services.Geocoder()
-        const addr = [apt.sigungu||sido, apt.dong||apt.umdNm||'', apt.jibun||''].filter(Boolean).join(' ')
+        const addr = [region, apt.dong||apt.umdNm||'', apt.jibun||''].filter(Boolean).join(' ')
         geocoder.addressSearch(addr, (r2, s2) => {
           if(s2 === kakao.maps.services.Status.OK) placeMarker(apt, {y: r2[0].y, x: r2[0].x})
         })
