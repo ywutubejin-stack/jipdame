@@ -1667,24 +1667,6 @@ async function updateMapMarkers() {
 }
 
 function populateSigunguFilter(apts) {
-  // 통합 필터 시도 변경 핸들러
-  function onFilterSidoChange() {
-    const sido = $('filterSido')?.value || ''
-    const sggSel = $('filterSigungu')
-    if(!sggSel) return
-    sggSel.innerHTML = '<option value="">전체 구</option>'
-    const opts = MAP_SGG[sido||'서울'] || []
-    opts.filter(([,v])=>v!=='sido').forEach(([label, val]) => {
-      const o = document.createElement('option')
-      o.value = val; o.textContent = label
-      sggSel.appendChild(o)
-    })
-    onFilterChange()
-  }
-  function onFilterChange() {
-    if(currentView === 'map') renderMapView()
-    else applyFiltersAndRender()
-  }
   const sel = $('filterSigungu')
   if(!sel) return
   // 시도별로 그룹핑해서 표시 (서울 강남구, 경기 남양주시 등)
@@ -2971,6 +2953,25 @@ function initChips() {
 }
 
 /* ── 초기화 ── */
+// 통합 필터 함수 (전역)
+function onFilterSidoChange() {
+  const sido = $('filterSido')?.value || ''
+  const sggSel = $('filterSigungu')
+  if(!sggSel) return
+  sggSel.innerHTML = '<option value="">전체 구</option>'
+  const opts = MAP_SGG[sido||'서울'] || []
+  opts.filter(([,v])=>v!=='sido').forEach(([label, val]) => {
+    const o = document.createElement('option')
+    o.value = val; o.textContent = label
+    sggSel.appendChild(o)
+  })
+  onFilterChange()
+}
+function onFilterChange() {
+  if(typeof currentView !== 'undefined' && currentView === 'map') renderMapView()
+  else if(typeof applyFiltersAndRender === 'function') applyFiltersAndRender()
+}
+
 function initApp() {
   showOnboardingIfNew()
   updateMktDataDate()
