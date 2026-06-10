@@ -2695,7 +2695,40 @@ function updateMapSgg() {
 let _mapRenderTimer = null
 function renderMapView() {
   clearTimeout(_mapRenderTimer)
-  _mapRenderTimer = setTimeout(_renderMapViewImpl, 300)
+  _mapRenderTimer = setTimeout(_doRenderMapView, 300)
+}
+async function _doRenderMapView() {
+  const sidoRaw = $('filterSido')?.value
+  const sido = (!sidoRaw || sidoRaw === '') ? '서울' : sidoRaw
+  const sgg = $('filterSigungu')?.value || ''
+  const sortVal = $('sortBy')?.value || 'score_desc'
+  const budgetMax = parseInt($('filterBudget')?.value || '0') * 100000000
+  const sizeFilter = $('filterSize')?.value || ''
+  const sizeRangesMap = {'u20':[0,66],'20':[66,105],'30':[85,105],'40':[105,999]}
+  const listEl = $('mapAptList')
+
+  if(listEl) listEl.innerHTML = '<div style="text-align:center;padding:20px;color:var(--muted);font-size:12px">불러오는 중...</div>'
+
+  const url = (!sgg || sgg === '')
+    ? `${PROXY}?type=trade&sido=${encodeURIComponent(sido)}`
+    : `${PROXY}?type=trade&code=${sgg}`
+  const res = await fetch(url, {headers:HDR}).then(r=>r.json()).catch(()=>({ok:false}))
+  if(!res.ok || !res.data?.length) {
+    if(listEl) listEl.innerHTML = '<div style="text-align:center;padding:20px;color:var(--muted);font-size:12px">데이터 없음</div>'
+    return
+  }
+
+  let data = res.data.map(a=>({...a, _score:calcAptScore(a)}))
+  if(sizeFilter && sizeRangesMap[sizeFilter]) { const [mn,mx]=sizeRangesMap[sizeFilter]; data=data.filter(a=>(a.area||0)>=mn&&(a.area||0)<mx) }
+  if(budgetMax > 0) data = data.filter(a => (a.avgPrice||0) <= budgetMax)
+  if(sortVal==='score_desc') data.sort((a,b)=>b._score-a._score)
+  else if(sortVal==='price_asc') data.sort((a,b)=>(a.avgPrice||0)-(b.avgPrice||0))
+  else if(sortVal==='price_desc') data.sort((a,b)=>(b.avgPrice||0)-(a.avgPrice||0))
+  else if(sortVal==='jsr_desc') data.sort((a,b)=>(b.jeonseRatio||0)-(a.jeonseRatio||0))
+
+  _mapDataCache = data
+  renderMapList(data)
+  renderMapMarkers(data)
 }
 
 // allAptData 캐시로 지도만 갱신 (fetch 없음)
