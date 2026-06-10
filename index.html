@@ -2697,149 +2697,28 @@ function renderMapView() {
   clearTimeout(_mapRenderTimer)
   _mapRenderTimer = setTimeout(_renderMapViewImpl, 300)
 }
-async function _renderMapViewImpl() {
-  const sido = $('filterSido')?.value || '서울'
+
+// allAptData 캐시로 지도만 갱신 (fetch 없음)
+function renderMapViewFromCache() {
+  if(!allAptData?.length) { renderMapView(); return }
   const sgg = $('filterSigungu')?.value || ''
-  const sortVal = ($('sortBy')?.value || 'score_desc').replace('_desc','').replace('jsr','jsr')
-  const budgetMax = parseInt($('filterBudget')?.value || '0') * 100000000
   const sizeFilter = $('filterSize')?.value || ''
   const sizeRangesMap = {'u20':[0,66],'20':[66,105],'30':[85,105],'40':[105,999]}
-  const sizeRanges = {'10':[0,49],'20':[49,66],'25':[66,85],'30':[85,105],'40':[105,999]}
-  const listEl = $('mapAptList')
-  const container = $('mapKakaoMap')
+  const budgetMax = parseInt($('filterBudget')?.value || '0') * 100000000
+  const sortVal = ($('sortBy')?.value || 'score_desc')
 
-  if(listEl) listEl.innerHTML = '<div style="text-align:center;padding:20px;color:var(--muted);font-size:12px">불러오는 중...</div>'
-
-  const url = (!sgg || sgg === 'sido' || sgg === '')
-    ? `${PROXY}?type=trade&sido=${encodeURIComponent(sido||'서울')}`
-    : `${PROXY}?type=trade&code=${sgg}`
-  const res = await fetch(url, {headers:HDR}).then(r=>r.json()).catch(()=>({ok:false}))
-  if(!res.ok || !res.data?.length) {
-    if(listEl) listEl.innerHTML = '<div style="text-align:center;padding:20px;color:var(--muted);font-size:12px">데이터 없음</div>'
-    return
-  }
-
-  let data = res.data.map(a=>({...a, _score:calcAptScore(a)}))
+  let data = allAptData.map(a => ({...a, _score: a._score || calcAptScore(a)}))
+  if(sgg) { const codes = sgg.split(','); data = data.filter(a => codes.includes(a.sggCd)) }
+  if(sizeFilter && sizeRangesMap[sizeFilter]) { const [mn,mx]=sizeRangesMap[sizeFilter]; data=data.filter(a=>(a.area||0)>=mn&&(a.area||0)<mx) }
   if(budgetMax > 0) data = data.filter(a => (a.avgPrice||0) <= budgetMax)
-  if(sizeFilter && sizeRangesMap[sizeFilter]) {
-    const [mn, mx] = sizeRangesMap[sizeFilter]
-    data = data.filter(a => (a.area||0) >= mn && (a.area||0) < mx)
-  }
-  if(sortVal==='score') data.sort((a,b)=>b._score-a._score)
+  if(sortVal==='score_desc') data.sort((a,b)=>b._score-a._score)
   else if(sortVal==='price_asc') data.sort((a,b)=>(a.avgPrice||0)-(b.avgPrice||0))
   else if(sortVal==='price_desc') data.sort((a,b)=>(b.avgPrice||0)-(a.avgPrice||0))
-  else if(sortVal==='jsr') data.sort((a,b)=>(b.jeonseRatio||0)-(a.jeonseRatio||0))
+  else if(sortVal==='jsr_desc') data.sort((a,b)=>(b.jeonseRatio||0)-(a.jeonseRatio||0))
 
   _mapDataCache = data
-
-  // 목록 렌더링
-  if(listEl) {
-    listEl.innerHTML = data.slice(0, 20).map(apt => {
-      const sc = apt._score>=70?'var(--up)':apt._score>=50?'var(--gold)':'var(--down)'
-      const jsr = apt.jeonseRatio ? apt.jeonseRatio+'%' : '—'
-      const aptStr = encodeURIComponent(JSON.stringify(apt))
-      return `<div onclick="openSheet(JSON.parse(decodeURIComponent('${aptStr}')))" style="background:var(--card);border-radius:12px;padding:12px 14px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;border:1px solid var(--border)">
-        <div>
-          <div style="font-size:13px;font-weight:600">${apt.name}</div>
-          <div style="font-size:11px;color:var(--muted)">${apt.dong||apt.sigungu||''} · 거래 ${apt.count||0}건 · 전세 ${jsr}</div>
-        </div>
-        <div style="text-align:right;flex-shrink:0;margin-left:10px">
-          <div style="font-size:13px;font-weight:700;color:var(--gold)">${fmt(apt.avgPrice)}</div>
-          <div style="font-size:12px;font-weight:700;color:${sc}">${apt._score}점</div>
-        </div>
-      </div>`
-    }).join('')
-  }
-
-  // 카카오맵
-  if(!container || !window.kakao?.maps) return
-  if(!_mapInst) {
-    _mapInst = new kakao.maps.Map(container, {
-      center: new kakao.maps.LatLng(37.5665, 126.9780), level: 8
-    })
-  }
-  _mapMarkers.forEach(m => m.setMap(null))
-  _mapMarkers = []
-
-  // sggCd → 지역명 매핑 (앱용)
-  const SGG_NAMES = {
-    '11680':'서울 강남구','11650':'서울 서초구','11710':'서울 송파구','11170':'서울 용산구',
-    '11440':'서울 마포구','11200':'서울 성동구','11740':'서울 강동구','11560':'서울 영등포구',
-    '11590':'서울 동작구','11380':'서울 은평구','11350':'서울 노원구','11215':'서울 광진구',
-    '11530':'서울 구로구','11470':'서울 강서구','11500':'서울 양천구','11620':'서울 관악구',
-    '11545':'서울 금천구','11230':'서울 동대문구','11260':'서울 중랑구','11290':'서울 성북구',
-    '11305':'서울 강북구','11320':'서울 도봉구','11110':'서울 종로구','11140':'서울 중구',
-    '11410':'서울 서대문구',
-    '41111':'경기 수원시 장안구','41113':'경기 수원시 권선구','41115':'경기 수원시 팔달구','41117':'경기 수원시 영통구',
-    '41131':'경기 성남시 수정구','41133':'경기 성남시 중원구','41135':'경기 성남시 분당구',
-    '41281':'경기 고양시 덕양구','41285':'경기 고양시 일산동구','41287':'경기 고양시 일산서구',
-    '41461':'경기 용인시 처인구','41463':'경기 용인시 기흥구','41465':'경기 용인시 수지구',
-    '41171':'경기 안양시 만안구','41173':'경기 안양시 동안구','41271':'경기 안산시 상록구','41273':'경기 안산시 단원구',
-    '41190':'경기 부천시','41210':'경기 광명시','41220':'경기 평택시','41290':'경기 과천시',
-    '41360':'경기 남양주시','41450':'경기 하남시','41480':'경기 파주시','41570':'경기 김포시','41590':'경기 화성시',
-    '28110':'인천 중구','28140':'인천 동구','28177':'인천 미추홀구','28185':'인천 연수구',
-    '28200':'인천 남동구','28237':'인천 부평구','28245':'인천 계양구','28260':'인천 서구',
-    '26230':'부산 부산진구','26260':'부산 동래구','26290':'부산 남구','26320':'부산 북구',
-    '26350':'부산 해운대구','26380':'부산 사하구','26410':'부산 금정구','26470':'부산 연제구','26500':'부산 수영구',
-    '27110':'대구 중구','27140':'대구 동구','27170':'대구 서구','27200':'대구 남구','27230':'대구 북구','27260':'대구 수성구','27290':'대구 달서구',
-    '29110':'광주 동구','29140':'광주 서구','29155':'광주 남구','29170':'광주 북구','29200':'광주 광산구',
-    '30110':'대전 동구','30140':'대전 중구','30170':'대전 서구','30200':'대전 유성구','30230':'대전 대덕구',
-    '31110':'울산 중구','31140':'울산 남구','31170':'울산 동구','31200':'울산 북구',
-    '36110':'세종시',
-  }
-
-  const geocoder = new kakao.maps.services.Geocoder()
-  const ps = new kakao.maps.services.Places()
-
-  // 좌표 캐시 (전역)
-  if(!window._geoCache) window._geoCache = {}
-  const geoCache = window._geoCache
-
-  // 순차 처리로 부하 방지 (모바일 멈춤 방지), 마커 15개로 제한
-  const targets = data.slice(0, 15)
-  let idx = 0
-
-  function processNext() {
-    if(idx >= targets.length) return
-    const apt = targets[idx]
-    idx++
-
-    const region = apt.sigungu || SGG_NAMES[apt.sggCd] || sido
-    const dong = apt.dong || apt.umdNm || ''
-    const jibun = apt.jibun || ''
-    const cacheKey = `${region}_${dong}_${jibun}_${apt.name}`
-
-    // 캐시 확인
-    if(geoCache[cacheKey]) {
-      placeMarker(apt, geoCache[cacheKey])
-      setTimeout(processNext, 30)
-      return
-    }
-
-    const onFound = (loc) => {
-      geoCache[cacheKey] = loc
-      placeMarker(apt, loc)
-      setTimeout(processNext, 100) // 다음 요청까지 텀
-    }
-    const onFail = () => setTimeout(processNext, 30)
-
-    if(jibun) {
-      const addr = `${region} ${dong} ${jibun}`.trim()
-      geocoder.addressSearch(addr, (result, status) => {
-        if(status === kakao.maps.services.Status.OK) onFound({y: result[0].y, x: result[0].x})
-        else ps.keywordSearch(`${region} ${apt.name}`, (r2, s2) => {
-          if(s2 === kakao.maps.services.Status.OK) onFound({y: r2[0].y, x: r2[0].x})
-          else onFail()
-        })
-      })
-    } else {
-      ps.keywordSearch(`${region} ${dong} ${apt.name}`, (result, status) => {
-        if(status === kakao.maps.services.Status.OK) onFound({y: result[0].y, x: result[0].x})
-        else onFail()
-      })
-    }
-  }
-  processNext()
+  _updateMapList(data)
+  _updateMapMarkers(data)
 
   function placeMarker(apt, loc) {
     const pos = new kakao.maps.LatLng(loc.y, loc.x)
@@ -3005,42 +2884,51 @@ function initChips() {
 /* ── 초기화 ── */
 // 통합 필터 함수 (전역)
 function onFilterSidoChange() {
-  const sido = $('filterSido')?.value || ''
+  const sidoRaw = $('filterSido')?.value
+  const sido = (sidoRaw === '' || sidoRaw == null) ? '서울' : sidoRaw
   const sggSel = $('filterSigungu')
-  if(!sggSel) return
-  sggSel.innerHTML = '<option value="">전체 구</option>'
-  const opts = MAP_SGG[sido||'서울'] || []
-  opts.filter(([,v])=>v!=='sido').forEach(([label, val]) => {
-    const o = document.createElement('option')
-    o.value = val; o.textContent = label
-    sggSel.appendChild(o)
-  })
-  if(typeof currentView !== 'undefined' && currentView === 'map') {
-    renderMapView()
-  } else {
-    // 목록 뷰: 해당 시도 데이터 다시 로드
-    reloadRecData(sido || '서울')
+  if(sggSel) {
+    sggSel.innerHTML = '<option value="">전체 구</option>'
+    const opts = MAP_SGG[sido] || []
+    opts.filter(([,v]) => v !== 'sido').forEach(([label, val]) => {
+      const o = document.createElement('option')
+      o.value = val; o.textContent = label
+      sggSel.appendChild(o)
+    })
+  }
+  // 시도 바뀌면 데이터 새로 fetch → allAptData 업데이트 → 목록+지도 둘 다 반영
+  reloadRecData(sido)
+}
+
+// 시도 변경 시 데이터 재로드 (목록+지도 공용)
+async function reloadRecData(sido) {
+  const lw = $('recList')
+  if(lw) lw.innerHTML = '<div style="text-align:center;padding:40px;color:var(--muted)">실거래 데이터 불러오는 중...</div>'
+  $('lbar')?.classList.add('on')
+  try {
+    const res = await fetch(`${PROXY}?type=trade&sido=${encodeURIComponent(sido)}`, {headers:HDR})
+      .then(r=>r.json()).catch(()=>({ok:false}))
+    if(res.ok && res.data?.length) {
+      processRecData(res.data)
+      // 지도 뷰가 열려있으면 지도도 갱신
+      if(typeof currentView !== 'undefined' && currentView === 'map') renderMapView()
+    } else {
+      if(lw) lw.innerHTML = '<div style="text-align:center;padding:40px;color:var(--muted)">데이터 없음</div>'
+    }
+  } catch(e) {
+    if(lw) lw.innerHTML = '<div style="text-align:center;padding:40px;color:var(--muted)">로드 실패</div>'
+  } finally {
+    $('lbar')?.classList.remove('on')
   }
 }
 
-// 시도 변경 시 목록 데이터 재로드
-async function reloadRecData(sido) {
-  const lw = $('recList'); if(!lw) return
-  lw.innerHTML = '<div style="text-align:center;padding:40px;color:var(--muted)">실거래 데이터 불러오는 중...</div>'
-  try {
-    const res = await fetch(`${PROXY}?type=trade&sido=${encodeURIComponent(sido)}`, {headers:HDR}).then(r=>r.json()).catch(()=>({ok:false}))
-    if(res.ok && res.data) {
-      processRecData(res.data)
-    } else {
-      lw.innerHTML = '<div style="text-align:center;padding:40px;color:var(--muted)">데이터 없음</div>'
-    }
-  } catch(e) {
-    lw.innerHTML = '<div style="text-align:center;padding:40px;color:var(--muted)">로드 실패</div>'
-  }
-}
 function onFilterChange() {
-  if(typeof currentView !== 'undefined' && currentView === 'map') renderMapView()
-  else if(typeof applyFilter === 'function') applyFilter()
+  if(typeof currentView !== 'undefined' && currentView === 'map') {
+    // 지도: allAptData에서 필터 적용해서 마커 업데이트
+    renderMapViewFromCache()
+  } else {
+    if(typeof applyFilter === 'function') applyFilter()
+  }
 }
 
 function initApp() {
