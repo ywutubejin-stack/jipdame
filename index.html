@@ -1842,9 +1842,9 @@ async function goToRec() {
   $('lbar')?.classList.add('on')
 
   // 필터 이벤트 연결
-  ;['filterSigungu','filterJsr','filterBuy','sortBy'].forEach(id => {
+  ;['filterSigungu','filterSize','filterBudget','sortBy'].forEach(id => {
     const el = $(id)
-    if(el && !el._bound) { el.addEventListener('change', applyFilter); el._bound=true }
+    if(el && !el._bound) { el.addEventListener('change', onFilterChange); el._bound=true }
   })
   ;['viewList','viewMap'].forEach(id => {
     const el = $(id)
@@ -1865,10 +1865,21 @@ async function goToRec() {
     const rawApts = []
     results.forEach(res=>{ if(res.ok&&res.data) rawApts.push(...res.data) })
 
-    // 중복제거 + 평수필터 + 예산필터 + 대출계산 캐시
+    processRecData(rawApts)
+    return
+  } catch(e) {
+    lw.innerHTML='<div style="text-align:center;padding:40px;color:var(--muted)">로드 실패. 다시 시도해주세요</div>'
+  } finally {
+    $('lbar')?.classList.remove('on')
+  }
+}
+
+// 데이터 가공 + 렌더링 (goToRec / reloadRecData 공용)
+function processRecData(rawApts) {
+  const lw = $('recList'); if(!lw) return
+  // 중복제거 + 평수필터 + 예산필터 + 대출계산 캐시
+  {
     const seen = new Set()
-    const sizeRanges = {'10':[23,46],'20':[46,76],'30':[76,105],'40':[105,140],'50':[140,999]}
-    const selSizes = state.sizes||['all']
     const budgetMax = state.power * 10000 * 1.3
 
     allAptData = rawApts.filter(apt=>{
@@ -1876,14 +1887,6 @@ async function goToRec() {
       if(seen.has(key)) return false
       seen.add(key)
       if((apt.avgPrice||0) > budgetMax) return false
-      if(!selSizes.includes('all') && selSizes.length>0) {
-        const inRange = selSizes.some(s => {
-          const range = sizeRanges[s]
-          if(!range) return false
-          return (apt.area||0)>=range[0] && (apt.area||0)<range[1]
-        })
-        if(!inRange) return false
-      }
       return true
     }).map(apt => {
       // 대출 계산 결과를 apt에 캐시
@@ -1905,9 +1908,11 @@ async function goToRec() {
       const score = calcAptScore(apt)
       return { ...apt, _loan:loan, _monthly:mon, _selfNeed:selfNeed, _shortage:shortage, _canBuy:canBuy, _blocked:blocked, _score:score }
     })
+  }
 
     if(!allAptData.length) {
       lw.innerHTML='<div style="text-align:center;padding:40px;color:var(--muted);font-size:12px">조건에 맞는 단지가 없어요<br>지역을 추가하거나 예산을 늘려보세요</div>'
+      $('lbar')?.classList.remove('on')
       return
     }
 
@@ -1921,12 +1926,7 @@ async function goToRec() {
     // 카드 렌더링
     renderCards(getFilteredSorted())
 
-  } catch(e){
-    console.error('추천 오류:',e)
-    lw.innerHTML='<div style="text-align:center;padding:40px;color:var(--down)">데이터 로드 실패</div>'
-  } finally {
-    $('lbar')?.classList.remove('on')
-  }
+  $('lbar')?.classList.remove('on')
 }
 
 /* ── 매수 타이밍 ── */
@@ -2999,11 +2999,32 @@ function onFilterSidoChange() {
     o.value = val; o.textContent = label
     sggSel.appendChild(o)
   })
-  onFilterChange()
+  if(typeof currentView !== 'undefined' && currentView === 'map') {
+    renderMapView()
+  } else {
+    // 목록 뷰: 해당 시도 데이터 다시 로드
+    reloadRecData(sido || '서울')
+  }
+}
+
+// 시도 변경 시 목록 데이터 재로드
+async function reloadRecData(sido) {
+  const lw = $('recList'); if(!lw) return
+  lw.innerHTML = '<div style="text-align:center;padding:40px;color:var(--muted)">실거래 데이터 불러오는 중...</div>'
+  try {
+    const res = await fetch(`${PROXY}?type=trade&sido=${encodeURIComponent(sido)}`, {headers:HDR}).then(r=>r.json()).catch(()=>({ok:false}))
+    if(res.ok && res.data) {
+      processRecData(res.data)
+    } else {
+      lw.innerHTML = '<div style="text-align:center;padding:40px;color:var(--muted)">데이터 없음</div>'
+    }
+  } catch(e) {
+    lw.innerHTML = '<div style="text-align:center;padding:40px;color:var(--muted)">로드 실패</div>'
+  }
 }
 function onFilterChange() {
   if(typeof currentView !== 'undefined' && currentView === 'map') renderMapView()
-  else if(typeof applyFiltersAndRender === 'function') applyFiltersAndRender()
+  else if(typeof applyFilter === 'function') applyFilter()
 }
 
 function initApp() {
