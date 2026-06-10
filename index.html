@@ -2699,37 +2699,91 @@ function renderMapView() {
 }
 
 // allAptData 캐시로 지도만 갱신 (fetch 없음)
+// 공통 마커 생성
+function placeMapMarker(apt) {
+  const color = apt._score>=70 ? '#4ade80' : apt._score>=50 ? '#e8c87a' : '#f87171'
+  const txtColor = apt._score>=70 ? '#052e16' : '#111'
+  const aptStr = encodeURIComponent(JSON.stringify(apt))
+  const content = '<div onclick="openSheet(JSON.parse(decodeURIComponent(\'' + aptStr + '\')))" style="background:' + color + ';color:' + txtColor + ';padding:4px 8px;border-radius:10px;font-size:10px;font-weight:700;white-space:nowrap;box-shadow:0 2px 8px rgba(0,0,0,.4);cursor:pointer;line-height:1.5;text-align:center">' + (apt.name.length>5?apt.name.slice(0,5)+'..':apt.name) + '<br>' + apt._score + '점</div>'
+  const overlay = new kakao.maps.CustomOverlay({position:new kakao.maps.LatLng(apt._loc.y, apt._loc.x), content, yAnchor:1.2})
+  overlay.setMap(_mapInst)
+  _mapMarkers.push(overlay)
+}
+
+// 목록 렌더링
+function renderMapList(data) {
+  const listEl = $('mapAptList'); if(!listEl) return
+  listEl.innerHTML = data.slice(0,20).map(apt => {
+    const sc = apt._score>=70?'var(--up)':apt._score>=50?'var(--gold)':'var(--down)'
+    const aptStr = encodeURIComponent(JSON.stringify(apt))
+    return '<div onclick="openSheet(JSON.parse(decodeURIComponent(\'' + aptStr + '\')))" style="background:var(--card);border-radius:12px;padding:12px 14px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;border:1px solid var(--border);margin-bottom:8px">'
+      + '<div><div style="font-size:13px;font-weight:600">' + apt.name + '</div>'
+      + '<div style="font-size:11px;color:var(--muted)">' + (apt.dong||apt.sigungu||'') + ' · 거래 ' + (apt.count||0) + '건</div></div>'
+      + '<div style="text-align:right;flex-shrink:0;margin-left:10px">'
+      + '<div style="font-size:13px;font-weight:700;color:var(--gold)">' + fmt(apt.avgPrice) + '</div>'
+      + '<div style="font-size:12px;font-weight:700;color:' + sc + '">' + apt._score + '점</div></div></div>'
+  }).join('')
+}
+
+// 마커 표시 (순차 geocoding)
+function renderMapMarkers(data) {
+  const container = $('mapKakaoMap'); if(!container || !window.kakao?.maps) return
+  if(!_mapInst) _mapInst = new kakao.maps.Map(container, {center: new kakao.maps.LatLng(37.5665, 126.9780), level:8})
+  _mapMarkers.forEach(m=>m.setMap(null)); _mapMarkers = []
+  if(!window._geoCache) window._geoCache = {}
+
+  const sido = (() => { const v=$('filterSido')?.value; return (!v||v==='')?'서울':v })()
+  const geocoder = new kakao.maps.services.Geocoder()
+  const ps = new kakao.maps.services.Places()
+  const targets = data.slice(0,15)
+  let idx = 0
+
+  function next() {
+    if(idx>=targets.length) return
+    const apt = targets[idx++]
+    const region = apt.sigungu || SGG_NAMES[apt.sggCd] || sido
+    const cacheKey = apt.sggCd + '_' + apt.name
+    if(window._geoCache[cacheKey]) {
+      apt._loc = window._geoCache[cacheKey]
+      placeMapMarker(apt)
+      setTimeout(next, 30); return
+    }
+    const done = (y,x) => {
+      const loc={y,x}; window._geoCache[cacheKey]=loc; apt._loc=loc
+      placeMapMarker(apt); setTimeout(next,100)
+    }
+    const fail = () => setTimeout(next,30)
+    if(apt.jibun) {
+      geocoder.addressSearch(region+' '+(apt.dong||'')+' '+apt.jibun, (r,s)=>{
+        if(s===kakao.maps.services.Status.OK) done(r[0].y,r[0].x)
+        else ps.keywordSearch(region+' '+apt.name, (r2,s2)=>{ if(s2===kakao.maps.services.Status.OK) done(r2[0].y,r2[0].x); else fail() })
+      })
+    } else {
+      ps.keywordSearch(region+' '+(apt.dong||'')+' '+apt.name, (r,s)=>{ if(s===kakao.maps.services.Status.OK) done(r[0].y,r[0].x); else fail() })
+    }
+  }
+  next()
+}
+
+// 필터 적용 후 캐시에서 목록+지도 갱신
 function renderMapViewFromCache() {
   if(!allAptData?.length) { renderMapView(); return }
   const sgg = $('filterSigungu')?.value || ''
   const sizeFilter = $('filterSize')?.value || ''
   const sizeRangesMap = {'u20':[0,66],'20':[66,105],'30':[85,105],'40':[105,999]}
-  const budgetMax = parseInt($('filterBudget')?.value || '0') * 100000000
-  const sortVal = ($('sortBy')?.value || 'score_desc')
-
-  let data = allAptData.map(a => ({...a, _score: a._score || calcAptScore(a)}))
-  if(sgg) { const codes = sgg.split(','); data = data.filter(a => codes.includes(a.sggCd)) }
-  if(sizeFilter && sizeRangesMap[sizeFilter]) { const [mn,mx]=sizeRangesMap[sizeFilter]; data=data.filter(a=>(a.area||0)>=mn&&(a.area||0)<mx) }
-  if(budgetMax > 0) data = data.filter(a => (a.avgPrice||0) <= budgetMax)
+  const budgetMax = parseInt($('filterBudget')?.value||'0') * 100000000
+  const sortVal = $('sortBy')?.value || 'score_desc'
+  let data = allAptData.map(a=>({...a, _score:a._score||calcAptScore(a)}))
+  if(sgg) { const codes=sgg.split(','); data=data.filter(a=>codes.includes(a.sggCd)) }
+  if(sizeFilter&&sizeRangesMap[sizeFilter]) { const [mn,mx]=sizeRangesMap[sizeFilter]; data=data.filter(a=>(a.area||0)>=mn&&(a.area||0)<mx) }
+  if(budgetMax>0) data=data.filter(a=>(a.avgPrice||0)<=budgetMax)
   if(sortVal==='score_desc') data.sort((a,b)=>b._score-a._score)
   else if(sortVal==='price_asc') data.sort((a,b)=>(a.avgPrice||0)-(b.avgPrice||0))
   else if(sortVal==='price_desc') data.sort((a,b)=>(b.avgPrice||0)-(a.avgPrice||0))
   else if(sortVal==='jsr_desc') data.sort((a,b)=>(b.jeonseRatio||0)-(a.jeonseRatio||0))
-
   _mapDataCache = data
-  _updateMapList(data)
-  _updateMapMarkers(data)
-
-  function placeMarker(apt, loc) {
-    const pos = new kakao.maps.LatLng(loc.y, loc.x)
-    const color = apt._score>=70 ? '#4ade80' : apt._score>=50 ? '#e8c87a' : '#f87171'
-    const txtColor = apt._score>=70 ? '#052e16' : '#111'
-    const aptStr = encodeURIComponent(JSON.stringify(apt))
-    const content = `<div onclick="openSheet(JSON.parse(decodeURIComponent('${aptStr}')))" style="background:${color};color:${txtColor};padding:4px 8px;border-radius:10px;font-size:10px;font-weight:700;white-space:nowrap;box-shadow:0 2px 8px rgba(0,0,0,.4);cursor:pointer;line-height:1.5;text-align:center">${apt.name.length>5?apt.name.slice(0,5)+'..':apt.name}<br>${apt._score}점</div>`
-    const overlay = new kakao.maps.CustomOverlay({position:pos, content, yAnchor:1.2})
-    overlay.setMap(_mapInst)
-    _mapMarkers.push(overlay)
-  }
+  renderMapList(data)
+  renderMapMarkers(data)
 }
 
 
