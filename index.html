@@ -468,14 +468,14 @@ body{background:#07090f;}
       <option value="30">30억 이하</option>
       <option value="50">50억 이하</option>
     </select>
-    <select id="sortBy" onchange="onFilterChange()" style="background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:6px 10px;font-size:11px;cursor:pointer;flex-shrink:0">
+    <select id="sortBy" onchange="onFilterChange()"  style="background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:6px 10px;font-size:11px;cursor:pointer;flex-shrink:0">
       <option value="score_desc">점수 높은순</option>
-      <option value="default">구매가능순</option>
       <option value="price_asc">가격 낮은순</option>
       <option value="price_desc">가격 높은순</option>
       <option value="jsr_desc">전세가율 높은순</option>
       <option value="count_desc">거래량 많은순</option>
     </select>
+    <button id="filterCanBuy" onclick="toggleCanBuyFilter()" style="padding:6px 12px;border-radius:8px;border:1px solid var(--border);background:none;color:var(--muted);font-size:11px;cursor:pointer;flex-shrink:0;white-space:nowrap">구매가능만</button>
   </div>
 
   <!-- 결과 수 -->
@@ -1689,8 +1689,7 @@ function getFilteredSorted() {
   if(sizeF && sizeRanges[sizeF]) { const [mn,mx]=sizeRanges[sizeF]; list=list.filter(a=>(a.area||0)>=mn&&(a.area||0)<mx) }
   if(budgetF > 0) list = list.filter(a => (a.avgPrice||0) <= budgetF)
   if(jsr)     list = list.filter(a => a.jeonseRatio >= jsr)
-  if(buy === 'can')  list = list.filter(a => a._canBuy)
-  if(buy === 'cant') list = list.filter(a => !a._canBuy && !a._blocked)
+  if($('filterCanBuy')?.dataset.active === '1') list = list.filter(a => a._canBuy)
 
   // 정렬
   if(sort === 'price_asc')   list.sort((a,b) => (a.avgPrice||0)-(b.avgPrice||0))
@@ -2931,6 +2930,18 @@ function initChips() {
 
 /* ── 초기화 ── */
 // 통합 필터 함수 (전역)
+
+function toggleCanBuyFilter() {
+  const btn = $('filterCanBuy')
+  if(!btn) return
+  const active = btn.dataset.active === '1'
+  btn.dataset.active = active ? '0' : '1'
+  btn.style.background = active ? 'none' : 'rgba(74,222,128,.15)'
+  btn.style.borderColor = active ? 'var(--border)' : 'rgba(74,222,128,.4)'
+  btn.style.color = active ? 'var(--muted)' : 'var(--up)'
+  onFilterChange()
+}
+
 function onFilterSidoChange() {
   const sido = $('filterSido')?.value || '서울'
   const sggSel = $('filterSigungu')
