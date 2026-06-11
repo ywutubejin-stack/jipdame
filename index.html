@@ -454,11 +454,11 @@ body{background:#07090f;}
       <option value="">전체 구</option>
     </select>
     <select id="filterSize" onchange="onFilterChange()" style="background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:6px 10px;font-size:11px;cursor:pointer;flex-shrink:0">
-      <option value="">전체 평형</option>
-      <option value="u20">20평 미만 (~66㎡)</option>
-      <option value="20">20~30평대 (66~105㎡)</option>
-      <option value="30">30평대 (85~105㎡)</option>
-      <option value="40">40평대 이상 (105㎡~)</option>
+      <option value="">전체</option>
+      <option value="s59">59㎡ 이하</option>
+      <option value="s84">59~84㎡</option>
+      <option value="s114">84~114㎡</option>
+      <option value="s115">114㎡ 이상</option>
     </select>
     <select id="filterBudget" onchange="onFilterChange()" style="background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:6px 10px;font-size:11px;cursor:pointer;flex-shrink:0">
       <option value="">전체 가격</option>
@@ -1675,7 +1675,7 @@ function getFilteredSorted() {
   let list = [...allAptData]
   const sigungu = $('filterSigungu')?.value || ''
   const sizeF   = $('filterSize')?.value || ''
-  const sizeRanges = {'u20':[0,66],'20':[66,105],'30':[85,105],'40':[105,999]}
+  const sizeRanges = {'s59':[0,60],'s84':[60,85],'s114':[85,115],'s115':[115,999]}
   const budgetF = parseInt($('filterBudget')?.value || '0') * 100000000
   const jsr     = parseInt($('filterJsr')?.value || '0')
   const buy     = $('filterBuy')?.value || ''
@@ -2665,7 +2665,7 @@ async function _doRenderMapView() {
   const sortVal = $('sortBy')?.value || 'score_desc'
   const budgetMax = parseInt($('filterBudget')?.value || '0') * 100000000
   const sizeFilter = $('filterSize')?.value || ''
-  const sizeRangesMap = {'u20':[0,66],'20':[66,105],'30':[85,105],'40':[105,999]}
+  const sizeRangesMap = {'s59':[0,60],'s84':[60,85],'s114':[85,115],'s115':[115,999]}
   const listEl = $('mapAptList')
 
   if(listEl) listEl.innerHTML = '<div style="text-align:center;padding:20px;color:var(--muted);font-size:12px">불러오는 중...</div>'
@@ -2764,7 +2764,7 @@ function renderMapViewFromCache() {
   if(!allAptData?.length) { renderMapView(); return }
   const sgg = $('filterSigungu')?.value || ''
   const sizeFilter = $('filterSize')?.value || ''
-  const sizeRangesMap = {'u20':[0,66],'20':[66,105],'30':[85,105],'40':[105,999]}
+  const sizeRangesMap = {'s59':[0,60],'s84':[60,85],'s114':[85,115],'s115':[115,999]}
   const budgetMax = parseInt($('filterBudget')?.value||'0') * 100000000
   const sortVal = $('sortBy')?.value || 'score_desc'
   let data = allAptData.map(a=>({...a, _score:a._score||calcAptScore(a)}))
