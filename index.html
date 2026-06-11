@@ -442,7 +442,7 @@ body{background:#07090f;}
   <!-- 통합 필터 바 (목록+지도 공유) -->
   <div style="display:flex;gap:6px;margin-bottom:6px;overflow-x:auto;padding-bottom:4px;scrollbar-width:none">
     <select id="filterSido" onchange="onFilterSidoChange()" style="background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:6px 10px;font-size:11px;cursor:pointer;flex-shrink:0">
-      <option value="">서울</option>
+      <option value="서울">서울</option>
       <option value="경기">경기</option>
       <option value="인천">인천</option>
       <option value="부산">부산</option>
@@ -1671,43 +1671,6 @@ async function updateMapMarkers() {
   console.log(`[지도] ${placed}개 마커 표시`)
 }
 
-function populateSigunguFilter(apts) {
-  const sel = $('filterSigungu')
-  if(!sel) return
-  // 시도별로 그룹핑해서 표시 (서울 강남구, 경기 남양주시 등)
-  const sidoMap = new Map()
-  apts.forEach(a => {
-    const sg = (a.sigungu || '').trim()
-    if(!sg) return
-    const parts = sg.split(' ')
-    const sido = parts[0] || ''
-    const gu   = parts[parts.length-1] || sg
-    if(!sidoMap.has(sido)) sidoMap.set(sido, new Set())
-    sidoMap.get(sido).add(gu)
-  })
-
-  sel.innerHTML = '<option value="">전체 지역</option>'
-  // 시도 순서: 서울 > 경기 > 인천 > 기타
-  const sidoOrder = ['서울','경기','인천','부산','대구','대전','광주','울산','세종']
-  const sortedSidos = [...sidoMap.keys()].sort((a,b) => {
-    const ai = sidoOrder.indexOf(a), bi = sidoOrder.indexOf(b)
-    return (ai===-1?99:ai) - (bi===-1?99:bi)
-  })
-
-  sortedSidos.forEach(sido => {
-    const optGroup = document.createElement('optgroup')
-    optGroup.label = sido
-    ;[...sidoMap.get(sido)].sort().forEach(gu => {
-      const opt = document.createElement('option')
-      opt.value = gu
-      opt.textContent = `${sido} ${gu}`
-      optGroup.appendChild(opt)
-    })
-    sel.appendChild(optGroup)
-  })
-}
-
-/* ── 필터/정렬 적용 ── */
 function getFilteredSorted() {
   let list = [...allAptData]
   const sigungu = $('filterSigungu')?.value || ''
@@ -1841,10 +1804,9 @@ async function goToRec() {
   const sp = $('sumPower'), sd = $('sumDetail')
   if(sp) sp.textContent = fmtPower(state.power*10000)
   if(sd) sd.textContent = `자산 ${fmt(state.asset*10000)} + 대출 포함`
-  lw.innerHTML='<div style="text-align:center;padding:40px;color:var(--muted)">실거래 데이터 불러오는 중...</div>'
-  $('lbar')?.classList.add('on')
 
-  // 필터 이벤트 연결
+  // 시도→구 필터 초기화
+  onFilterSidoChange()
   ;['filterSigungu','filterSize','filterBudget','sortBy'].forEach(id => {
     const el = $(id)
     if(el && !el._bound) { el.addEventListener('change', onFilterChange); el._bound=true }
@@ -1920,7 +1882,6 @@ function processRecData(rawApts) {
     }
 
     // 시군구 필터 옵션 채우기
-    populateSigunguFilter(allAptData)
 
     // 결과 수 표시
     const rc = $('recCount')
@@ -2971,8 +2932,7 @@ function initChips() {
 /* ── 초기화 ── */
 // 통합 필터 함수 (전역)
 function onFilterSidoChange() {
-  const sidoRaw = $('filterSido')?.value
-  const sido = (sidoRaw === '' || sidoRaw == null) ? '서울' : sidoRaw
+  const sido = $('filterSido')?.value || '서울'
   const sggSel = $('filterSigungu')
   if(sggSel) {
     sggSel.innerHTML = '<option value="">전체 구</option>'
@@ -2983,7 +2943,6 @@ function onFilterSidoChange() {
       sggSel.appendChild(o)
     })
   }
-  // 시도 바뀌면 데이터 새로 fetch → allAptData 업데이트 → 목록+지도 둘 다 반영
   reloadRecData(sido)
 }
 
