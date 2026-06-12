@@ -2678,7 +2678,22 @@ async function _doRenderMapView() {
     return
   }
 
-  let data = res.data.map(a=>({...a, _score:calcAptScore(a)}))
+  let data = res.data.map(a=>{
+    const p = a.avgPrice||0
+    const sg = a.sigungu||a.dong||''
+    const h = state.houseCount
+    const superSpec = ['강남구','서초구','송파구','용산구'].some(z=>sg.includes(z))
+    const isSeoul = sg.includes('서울')
+    const ltv = superSpec?(h===0?.5:h===1?.3:0):isSeoul?(h===0?.7:h===1?.6:.5):(h===0?.7:h===1?.6:.5)
+    const blocked = superSpec&&h>=2
+    const r=state.rate/100/12, n=30*12
+    const ltvL = blocked?0:p<=900000000?p*ltv:900000000*ltv+(p-900000000)*Math.max(ltv-.1,0)
+    const dsrL = (state.income*10000)/12*.4/(r*(1+r)**n/((1+r)**n-1))
+    const loan = Math.min(ltvL,dsrL)
+    const selfNeed = p-loan
+    const canBuy = !blocked && selfNeed<=state.asset*10000
+    return {...a, _score:calcAptScore(a), _canBuy:canBuy, _blocked:blocked}
+  })
   if(sizeFilter && sizeRangesMap[sizeFilter]) { const [mn,mx]=sizeRangesMap[sizeFilter]; data=data.filter(a=>(a.area||0)>=mn&&(a.area||0)<mx) }
   if(budgetMax > 0) data = data.filter(a => (a.avgPrice||0) <= budgetMax)
   if(sortVal==='score_desc') data.sort((a,b)=>b._score-a._score)
