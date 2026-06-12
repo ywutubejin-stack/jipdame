@@ -2770,6 +2770,7 @@ function renderMapViewFromCache() {
   if(sgg) { const codes=sgg.split(','); data=data.filter(a=>codes.includes(a.sggCd)) }
   if(sizeFilter&&sizeRangesMap[sizeFilter]) { const [mn,mx]=sizeRangesMap[sizeFilter]; data=data.filter(a=>(a.area||0)>=mn&&(a.area||0)<mx) }
   if(budgetMax>0) data=data.filter(a=>(a.avgPrice||0)<=budgetMax)
+  if($('filterCanBuy')?.dataset.active === '1') data=data.filter(a=>a._canBuy)
   if(sortVal==='score_desc') data.sort((a,b)=>b._score-a._score)
   else if(sortVal==='price_asc') data.sort((a,b)=>(a.avgPrice||0)-(b.avgPrice||0))
   else if(sortVal==='price_desc') data.sort((a,b)=>(b.avgPrice||0)-(a.avgPrice||0))
