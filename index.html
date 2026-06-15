@@ -1191,7 +1191,9 @@ function openSheet(apt, showFavBtn=true) {
     fetch(`${PROXY}?type=trade&code=${apt.sggCd}`, {headers:HDR})
       .then(r=>r.json()).then(res => {
         if(!res.ok || !$('detailSheet')?.classList.contains('open') || curApt?.name !== sheetAptName) return
-        const matched = (res.data||[]).find(a => a.name === apt.name)
+        const normName = n => n?.replace(/\s+/g,'').replace(/아파트$|APT$/i,'').replace(/\(.*?\)/g,'').replace(/[^\w가-힣]/g,'').toLowerCase()||''
+        const aptNorm = normName(apt.name)
+        const matched = (res.data||[]).find(a => a.name === apt.name || normName(a.name) === aptNorm || aptNorm.includes(normName(a.name)) || normName(a.name).includes(aptNorm))
         const trades = matched?.trades || []
         const avgPrice = matched?.avgPrice || (trades.length ? Math.round(trades.reduce((s,t)=>s+(t.price||0),0)/trades.length) : 0)
         if(matched) curApt = {...curApt, ...matched, avgPrice}
