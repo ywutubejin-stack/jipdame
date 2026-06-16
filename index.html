@@ -1607,14 +1607,17 @@ async function runAiRecommend() {
 
   try {
     const sido = state.regions?.[0] || '서울'
+    const regionCodes = REGION_CODES[sido] || REGION_CODES['서울']
+    // 주요 구 코드 3개만 샘플링해서 빠르게 fetch
+    const sampleCodes = regionCodes.split(',').slice(0, 3)
 
-    // 이미 로드된 데이터 있으면 재사용, 없으면 fetch
-    let aptData = allAptData?.length ? allAptData : null
-    if(!aptData) {
-      const tradeRes = await fetch(`${PROXY}?type=trade&sido=${encodeURIComponent(sido)}`, {headers:HDR}).then(r=>r.json()).catch(()=>({ok:false}))
-      if(!tradeRes.ok || !tradeRes.data?.length) throw new Error('데이터 없음 — 추천 탭을 먼저 열어주세요')
-      aptData = tradeRes.data
-    }
+    result.innerHTML = '<div style="color:var(--muted);font-size:13px;text-align:center;padding:20px">실거래 데이터 수집 중...</div>'
+
+    const tradeResults = await Promise.all(
+      sampleCodes.map(code => fetch(`${PROXY}?type=trade&code=${code.trim()}`, {headers:HDR}).then(r=>r.json()).catch(()=>({ok:false,data:[]})))
+    )
+    const aptData = tradeResults.flatMap(r => r.ok ? r.data||[] : [])
+    if(!aptData.length) throw new Error('데이터를 불러오지 못했어요. 잠시 후 다시 시도해주세요.')
 
     result.innerHTML = '<div style="color:var(--muted);font-size:13px;text-align:center;padding:20px">AI 분석 중...</div>'
 
@@ -1665,9 +1668,13 @@ ${apts.map((a,i)=>(i+1)+'. '+a.name+' ('+( a.sigungu||a.dong)+') | 평균가 '+(
 
     if(!aiRes.ok) throw new Error('AI 오류: ' + JSON.stringify(aiRes))
     const text = aiRes.text || ''
-    const jsonMatch = text.match(/\{[\s\S]*\}/)
-    if(!jsonMatch) throw new Error('파싱 실패: ' + text.slice(0,100))
-    const rec = JSON.parse(jsonMatch[0])
+    // 마크다운 코드블록 제거 후 JSON 추출
+    const cleaned = text.replace(/```json|```/g, '').trim()
+    const jsonMatch = cleaned.match(/\{[\s\S]*\}/)
+    if(!jsonMatch) throw new Error('AI 응답을 파싱할 수 없어요. 다시 시도해주세요.')
+    let rec
+    try { rec = JSON.parse(jsonMatch[0]) }
+    catch(e) { throw new Error('JSON 파싱 실패. 다시 시도해주세요.') }
 
     const timingColor = rec.timing?.includes('적기')?'var(--up)':rec.timing?.includes('6개월')?'var(--gold)':'var(--down)'
     // 추천 단지 찾아서 openSheet 연결
