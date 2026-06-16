@@ -1607,12 +1607,18 @@ async function runAiRecommend() {
 
   try {
     const sido = state.regions?.[0] || '서울'
-    const tradeRes = await fetch(`${PROXY}?type=trade&sido=${encodeURIComponent(sido)}`, {headers:HDR}).then(r=>r.json()).catch(()=>({ok:false}))
-    if(!tradeRes.ok || !tradeRes.data?.length) throw new Error('데이터 없음')
+
+    // 이미 로드된 데이터 있으면 재사용, 없으면 fetch
+    let aptData = allAptData?.length ? allAptData : null
+    if(!aptData) {
+      const tradeRes = await fetch(`${PROXY}?type=trade&sido=${encodeURIComponent(sido)}`, {headers:HDR}).then(r=>r.json()).catch(()=>({ok:false}))
+      if(!tradeRes.ok || !tradeRes.data?.length) throw new Error('데이터 없음 — 추천 탭을 먼저 열어주세요')
+      aptData = tradeRes.data
+    }
 
     result.innerHTML = '<div style="color:var(--muted);font-size:13px;text-align:center;padding:20px">AI 분석 중...</div>'
 
-    const apts = tradeRes.data.slice(0,20).map(a=>({
+    const apts = aptData.slice(0,20).map(a=>({
       name: a.name, sigungu: a.sigungu, dong: a.dong,
       avgPrice: a.avgPrice, jeonseRatio: a.jeonseRatio,
       count: a.count, built: a.built, score: calcAptScore(a)
@@ -1665,7 +1671,7 @@ ${apts.map((a,i)=>(i+1)+'. '+a.name+' ('+( a.sigungu||a.dong)+') | 평균가 '+(
 
     const timingColor = rec.timing?.includes('적기')?'var(--up)':rec.timing?.includes('6개월')?'var(--gold)':'var(--down)'
     // 추천 단지 찾아서 openSheet 연결
-    const recApt = tradeRes.data.find(a=>a.name===rec.name) || tradeRes.data[0]
+    const recApt = aptData.find(a=>a.name===rec.name) || aptData[0]
     const aptStr = encodeURIComponent(JSON.stringify(recApt))
 
     result.innerHTML = `
