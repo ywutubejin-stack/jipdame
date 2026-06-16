@@ -1601,110 +1601,106 @@ async function runAiRecommend() {
   const result = $('aiRecommendResult')
   if(!btn || !result) return
   btn.disabled = true
-  btn.innerHTML = '<span style="font-size:18px">⏳</span> 분석 중... (30초 소요)'
+  btn.innerHTML = '<span style="font-size:18px">⏳</span> 분석 중... (약 20초 소요)'
   result.style.display = 'block'
-  result.innerHTML = '<div style="color:var(--muted);font-size:13px;text-align:center;padding:20px">데이터 수집 중...</div>'
+  result.innerHTML = '<div style="color:var(--muted);font-size:13px;text-align:center;padding:20px">실거래 데이터 수집 중...</div>'
 
   try {
-    // 추천 탭 데이터 수집
     const sido = state.regions?.[0] || '서울'
     const tradeRes = await fetch(`${PROXY}?type=trade&sido=${encodeURIComponent(sido)}`, {headers:HDR}).then(r=>r.json()).catch(()=>({ok:false}))
-    const timingRes = await fetch(`${PROXY}?type=timing`, {headers:HDR}).then(r=>r.json()).catch(()=>({ok:false}))
-    const apts = (tradeRes.data||[]).slice(0,30).map(a=>({
+    if(!tradeRes.ok || !tradeRes.data?.length) throw new Error('데이터 없음')
+
+    result.innerHTML = '<div style="color:var(--muted);font-size:13px;text-align:center;padding:20px">AI 분석 중...</div>'
+
+    const apts = tradeRes.data.slice(0,20).map(a=>({
       name: a.name, sigungu: a.sigungu, dong: a.dong,
       avgPrice: a.avgPrice, jeonseRatio: a.jeonseRatio,
-      count: a.count, built: a.built, area: a.area,
-      score: calcAptScore(a)
+      count: a.count, built: a.built, score: calcAptScore(a)
     }))
-
-    const timingData = null
 
     const householdMap = {single:'1인 가구', couple:'신혼/부부', dual:'맞벌이', family:'자녀 있는 가족'}
     const userProfile = {
-      자산: `${(state.asset/10000).toFixed(1)}억원`,
-      소득: `연 ${(state.income/100).toFixed(0)}만원`,
-      대출금리: `${state.rate}%`,
-      구매력: `${(state.power/10000).toFixed(1)}억원`,
-      매수목적: state.purpose === 'live' ? '실거주' : '투자',
-      가구유형: householdMap[state.household] || '미입력',
-      직장위치: state.workplace || '미입력',
-      통근허용: `${state.commuteTime || 60}분 이내`,
-      보유기간: state.holdYears ? `${state.holdYears}년` : '무기한',
+      자산: (state.asset/10000).toFixed(1)+'억원',
+      소득: '연 '+(state.income/100).toFixed(0)+'만원',
+      대출금리: state.rate+'%',
+      구매력: (state.power/10000).toFixed(1)+'억원',
+      매수목적: state.purpose==='live'?'실거주':'투자',
+      가구유형: householdMap[state.household]||'미입력',
+      직장위치: state.workplace||'미입력',
+      통근허용: (state.commuteTime||60)+'분 이내',
+      보유기간: state.holdYears?state.holdYears+'년':'무기한',
       관심지역: sido,
-      주택보유: state.houseCount === 0 ? '무주택' : `${state.houseCount}주택`,
+      주택보유: state.houseCount===0?'무주택':state.houseCount+'주택',
     }
-
-    result.innerHTML = '<div style="color:var(--muted);font-size:13px;text-align:center;padding:20px">AI 분석 중...</div>'
 
     const prompt = `당신은 한국 부동산 전문가입니다. 아래 사용자 조건과 실거래 데이터를 분석해서 최적의 아파트 단지 1개를 추천해주세요.
 
 ## 사용자 프로필
-${Object.entries(userProfile).map(([k,v])=>`- ${k}: ${v}`).join('\n')}
+${Object.entries(userProfile).map(([k,v])=>'- '+k+': '+v).join('\n')}
 
-## 후보 단지 (집담 점수순 상위 30개)
-${apts.slice(0,20).map((a,i)=>`${i+1}. ${a.name} (${a.sigungu||a.dong}) | 평균가 ${a.avgPrice?(a.avgPrice/100000000).toFixed(1)+'억':'미상'} | 전세가율 ${a.jeonseRatio||'?'}% | 거래량 ${a.count}건 | 건축 ${a.built}년 | 집담점수 ${a.score}점`).join('\n')}
+## 후보 단지 (상위 20개)
+${apts.map((a,i)=>(i+1)+'. '+a.name+' ('+( a.sigungu||a.dong)+') | 평균가 '+(a.avgPrice?(a.avgPrice/100000000).toFixed(1)+'억':'미상')+' | 전세가율 '+(a.jeonseRatio||'?')+'% | 거래량 '+a.count+'건 | 건축 '+a.built+'년 | 집담점수 '+a.score+'점').join('\n')}
 
-${timingData ? `## 현재 시장 상황
-- 기준금리: ${timingData.rate}%
-- 평균 전세가율: ${timingData.jsr}%` : ''}
+## 요청
+1. 위 후보 중 이 사용자에게 가장 적합한 단지 1개 선정
+2. 선정 이유 3가지 (사용자 조건과 연결)
+3. 매수 타이밍 판단: 지금 사야할지 기다려야할지
+4. 단지 상세 설명: 입지 특성, 학군, 교통, 단지 특징
+5. 주의사항 1가지
 
-## 요청사항
-1. 위 후보 중 이 사용자에게 **가장 적합한 단지 1개**를 선정
-2. 선정 이유를 3가지로 설명 (사용자 조건과 연결해서)
-3. **매수 타이밍 판단**: 지금 사야 할지, 기다려야 할지 (금리, 전세가율, 시세 추이 근거)
-4. 주의사항 1가지
+반드시 아래 JSON 형식으로만 응답하세요 (다른 텍스트 없이):
+{"name":"단지명","location":"위치","price":"가격","reasons":["이유1","이유2","이유3"],"timing":"지금 매수 적기 / 6개월 후 권장 / 1년 이상 관망","timingReason":"타이밍 근거 2-3문장","detail":"단지 상세 설명 (입지/학군/교통/특징, 3-4문장)","caution":"주의사항"}`
 
-응답 형식 (JSON):
-{
-  "name": "단지명",
-  "location": "위치",
-  "price": "가격",
-  "reasons": ["이유1", "이유2", "이유3"],
-  "timing": "지금 매수 적기 / 6개월 후 매수 권장 / 1년 이상 관망 권장",
-  "timingReason": "타이밍 판단 근거 (2-3문장)",
-  "caution": "주의사항"
-}`
-
-    const apiRes = await fetch(`${PROXY}?type=ai`, {
+    const aiRes = await fetch(`${PROXY}?type=ai`, {
       method: 'POST',
       headers: {...HDR, 'Content-Type': 'application/json'},
-      body: JSON.stringify({ prompt })
+      body: JSON.stringify({prompt})
     }).then(r=>r.json())
 
-    const text = apiRes.text || ''
+    if(!aiRes.ok) throw new Error('AI 오류: ' + JSON.stringify(aiRes))
+    const text = aiRes.text || ''
     const jsonMatch = text.match(/\{[\s\S]*\}/)
-    if(!jsonMatch) throw new Error('파싱 실패')
+    if(!jsonMatch) throw new Error('파싱 실패: ' + text.slice(0,100))
     const rec = JSON.parse(jsonMatch[0])
 
-    const timingColor = rec.timing?.includes('적기') ? 'var(--up)' : rec.timing?.includes('6개월') ? 'var(--gold)' : 'var(--down)'
+    const timingColor = rec.timing?.includes('적기')?'var(--up)':rec.timing?.includes('6개월')?'var(--gold)':'var(--down)'
+    // 추천 단지 찾아서 openSheet 연결
+    const recApt = tradeRes.data.find(a=>a.name===rec.name) || tradeRes.data[0]
+    const aptStr = encodeURIComponent(JSON.stringify(recApt))
 
     result.innerHTML = `
       <div style="text-align:center;margin-bottom:16px">
         <div style="font-size:11px;color:var(--gold);font-weight:600;letter-spacing:1px;margin-bottom:6px">✨ AI 최적 추천 단지</div>
         <div style="font-size:22px;font-weight:700;font-family:var(--serif)">${rec.name}</div>
         <div style="font-size:13px;color:var(--muted);margin-top:4px">${rec.location} · ${rec.price}</div>
+        <button onclick="openSheet(JSON.parse(decodeURIComponent('${aptStr}')))" style="margin-top:10px;padding:8px 20px;border-radius:10px;border:1px solid var(--gold);background:rgba(232,200,122,.1);color:var(--gold);font-size:12px;font-weight:600;cursor:pointer">단지 상세 보기 →</button>
       </div>
 
       <div style="margin-bottom:14px">
         <div style="font-size:11px;font-weight:600;color:var(--muted);margin-bottom:8px">📌 추천 이유</div>
-        ${rec.reasons.map((r,i)=>`<div style="display:flex;gap:10px;margin-bottom:8px;font-size:13px;line-height:1.5"><span style="color:var(--gold);font-weight:700;flex-shrink:0">${i+1}</span><span>${r}</span></div>`).join('')}
+        ${rec.reasons.map((r,i)=>'<div style="display:flex;gap:10px;margin-bottom:8px;font-size:13px;line-height:1.5"><span style="color:var(--gold);font-weight:700;flex-shrink:0">'+(i+1)+'</span><span>'+r+'</span></div>').join('')}
       </div>
 
-      <div style="background:var(--bg3);border-radius:12px;padding:14px;margin-bottom:12px">
+      <div style="background:var(--bg3);border-radius:12px;padding:14px;margin-bottom:10px">
+        <div style="font-size:11px;font-weight:600;color:var(--muted);margin-bottom:6px">🏘️ 단지 특징</div>
+        <div style="font-size:12px;line-height:1.7;color:var(--text)">${rec.detail}</div>
+      </div>
+
+      <div style="background:var(--bg3);border-radius:12px;padding:14px;margin-bottom:10px">
         <div style="font-size:11px;font-weight:600;color:var(--muted);margin-bottom:6px">⏱️ 매수 타이밍</div>
         <div style="font-size:14px;font-weight:700;color:${timingColor};margin-bottom:6px">${rec.timing}</div>
         <div style="font-size:12px;color:var(--text);line-height:1.6">${rec.timingReason}</div>
       </div>
 
-      <div style="background:rgba(248,113,113,.08);border-radius:10px;padding:12px;border:1px solid rgba(248,113,113,.2)">
+      <div style="background:rgba(248,113,113,.08);border-radius:10px;padding:12px;border:1px solid rgba(248,113,113,.2);margin-bottom:12px">
         <div style="font-size:11px;font-weight:600;color:var(--down);margin-bottom:4px">⚠️ 주의사항</div>
         <div style="font-size:12px;line-height:1.6">${rec.caution}</div>
       </div>
 
-      <button onclick="this.parentElement.style.display='none';$('aiRecommendBtn').disabled=false;$('aiRecommendBtn').innerHTML='<span style=\\'font-size:18px\\'>✨</span> AI가 최적의 단지 1개 추천해줘'" style="width:100%;margin-top:12px;padding:10px;border-radius:10px;border:1px solid var(--border);background:none;color:var(--muted);font-size:12px;cursor:pointer">다시 분석하기</button>`
+      <button onclick="result.style.display='none';btn.disabled=false;btn.innerHTML='<span style=\'font-size:18px\'>✨</span> AI가 최적의 단지 1개 추천해줘'" style="width:100%;padding:10px;border-radius:10px;border:1px solid var(--border);background:none;color:var(--muted);font-size:12px;cursor:pointer">다시 분석하기</button>`
 
   } catch(e) {
-    result.innerHTML = `<div style="color:var(--muted);font-size:13px;text-align:center;padding:20px">분석 실패. 잠시 후 다시 시도해주세요.</div>`
+    result.innerHTML = '<div style="color:var(--down);font-size:13px;text-align:center;padding:20px">분석 실패: '+e.message+'</div>'
     btn.disabled = false
     btn.innerHTML = '<span style="font-size:18px">✨</span> AI가 최적의 단지 1개 추천해줘'
   }
