@@ -474,17 +474,15 @@ body{background:#07090f;}
     </div>
   </div>
 
-  <button class="cta-btn" id="ctaBtn">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
-    내 조건에 맞는 단지 추천받기
+  <!-- AI 최적 단지 추천 (메인 CTA) -->
+  <button id="aiRecommendBtn" onclick="runAiRecommend()" style="width:100%;padding:18px;border-radius:16px;border:none;background:linear-gradient(135deg,rgba(232,200,122,.25),rgba(232,200,122,.1));color:var(--gold);font-size:16px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:10px;border:1px solid rgba(232,200,122,.4);margin-bottom:10px">
+    <span style="font-size:22px">✨</span> AI가 최적의 단지 1개 추천해줘
   </button>
 
-  <!-- AI 최적 단지 추천 -->
-  <div style="margin-top:12px">
-    <button id="aiRecommendBtn" onclick="runAiRecommend()" style="width:100%;padding:16px;border-radius:16px;border:1px solid rgba(232,200,122,.4);background:rgba(232,200,122,.08);color:var(--gold);font-size:14px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px">
-      <span style="font-size:18px">✨</span> AI가 최적의 단지 1개 추천해줘
-    </button>
-  </div>
+  <button class="cta-btn" id="ctaBtn" style="background:rgba(255,255,255,.06);color:var(--muted);font-size:13px;padding:13px;border:1px solid var(--border)">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+    직접 탐색하기 (전체 추천 목록)
+  </button>
 
   <!-- AI 추천 결과 -->
   <div id="aiRecommendResult" style="display:none;margin-top:12px;background:var(--card);border-radius:16px;padding:20px;border:1px solid var(--border2)"></div>
@@ -1672,17 +1670,13 @@ ${timingData ? `## 현재 시장 상황
   "caution": "주의사항"
 }`
 
-    const apiRes = await fetch('https://api.anthropic.com/v1/messages', {
+    const apiRes = await fetch(`${PROXY}?type=ai`, {
       method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-6',
-        max_tokens: 1000,
-        messages: [{role:'user', content: prompt}]
-      })
+      headers: {...HDR, 'Content-Type': 'application/json'},
+      body: JSON.stringify({ prompt })
     }).then(r=>r.json())
 
-    const text = apiRes.content?.[0]?.text || ''
+    const text = apiRes.text || ''
     const jsonMatch = text.match(/\{[\s\S]*\}/)
     if(!jsonMatch) throw new Error('파싱 실패')
     const rec = JSON.parse(jsonMatch[0])
