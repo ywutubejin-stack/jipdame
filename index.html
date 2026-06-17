@@ -1638,10 +1638,11 @@ async function runAiRecommend() {
           if(!sizes.length || sizes.includes('all')) return true
           const area = a.area||0
           return sizes.some(s => {
-            if(s==='59') return area <= 60
-            if(s==='84') return area > 60 && area <= 85
-            if(s==='114') return area > 85 && area <= 115
-            if(s==='115') return area > 115
+            if(s==='10') return area <= 40
+            if(s==='20') return area > 40 && area <= 66
+            if(s==='30') return area > 66 && area <= 100
+            if(s==='40') return area > 100 && area <= 130
+            if(s==='50') return area > 130
             return true
           })
         })
@@ -1678,7 +1679,7 @@ async function runAiRecommend() {
       통근허용시간: (state.commuteTime||60)+'분 이내',
       예상보유기간: holdMap[state.holdYears]||'미입력',
       관심지역: (state.regions||['서울']).join(', '),
-      선호평형: (() => { const s=state.sizes||[]; const m={'59':'59㎡ 이하(소형)','84':'59~84㎡(국민평형)','114':'84~114㎡(중대형)','115':'114㎡ 이상(대형)'}; return s.map(x=>m[x]||x).join(', ')||'무관' })(),
+      선호평형: (() => { const s=state.sizes||[]; const m={'10':'10평대(~40㎡)','20':'20평대(40~66㎡)','30':'30평대(66~100㎡)','40':'40평대(100~130㎡)','50':'50평대 이상(130㎡+)','all':'무관'}; return s.map(x=>m[x]||x).join(', ')||'무관' })(),
     }
 
     const prompt = `당신은 한국 부동산 전문가입니다. 사용자 조건을 꼼꼼히 분석해 최적의 아파트 1개를 추천해주세요.
