@@ -1650,12 +1650,33 @@ async function runAiRecommend() {
         .slice(0, 20)
     }
     if(!candidateApts.length) {
-      const firstCode = (REGION_CODES[state.regions?.[0]||'서울']||'').split(',')[0]?.trim() || '11680'
-      const tr = await fetch(`${PROXY}?type=trade&code=${firstCode}`, {headers:HDR}).then(r=>r.json()).catch(()=>({ok:false}))
-      if(tr.ok && tr.data?.length) {
-        candidateApts = tr.data
+      const regions = state.regions?.length ? state.regions : ['서울']
+      // 각 지역에서 2개 구씩 샘플링해서 병렬 fetch
+      const codes = regions.flatMap(r => {
+        const rc = REGION_CODES[r] || ''
+        return rc.split(',').filter((_,i) => i % 3 === 0).slice(0,2).map(c=>c.trim()).filter(Boolean)
+      })
+      const results = await Promise.all(
+        codes.map(code => fetch(`${PROXY}?type=trade&code=${code}`, {headers:HDR}).then(r=>r.json()).catch(()=>({ok:false,data:[]})))
+      )
+      const allData = results.flatMap(r => r.ok ? (r.data||[]) : [])
+      if(allData.length) {
+        candidateApts = allData
           .map(a => ({...a, _score: calcAptScore(a), _canBuy: (a.avgPrice||0) <= power * 1.1}))
-          .filter(a => a._canBuy)
+          .filter(a => {
+            if(!a._canBuy) return false
+            const sizes = state.sizes||[]
+            if(!sizes.length || sizes.includes('all')) return true
+            const area = a.area||0
+            return sizes.some(s => {
+              if(s==='10') return area <= 40
+              if(s==='20') return area > 40 && area <= 66
+              if(s==='30') return area > 66 && area <= 100
+              if(s==='40') return area > 100 && area <= 130
+              if(s==='50') return area > 130
+              return true
+            })
+          })
           .sort((a,b) => b._score - a._score)
           .slice(0, 20)
       }
