@@ -1608,16 +1608,13 @@ async function runAiRecommend() {
   try {
     const sido = state.regions?.[0] || '서울'
     const regionCodes = REGION_CODES[sido] || REGION_CODES['서울']
-    // 주요 구 코드 3개만 샘플링해서 빠르게 fetch
-    const sampleCodes = regionCodes.split(',').slice(0, 3)
+    // 첫 번째 코드만 사용 (타임아웃 방지)
+    const firstCode = regionCodes.split(',')[0].trim()
 
     result.innerHTML = '<div style="color:var(--muted);font-size:13px;text-align:center;padding:20px">실거래 데이터 수집 중...</div>'
 
-    const tradeResults = await Promise.all(
-      sampleCodes.map(code => fetch(`${PROXY}?type=trade&code=${code.trim()}`, {headers:HDR}).then(r=>r.json()).catch(()=>({ok:false,data:[]})))
-    )
-    const aptData = tradeResults.flatMap(r => r.ok ? r.data||[] : [])
-    if(!aptData.length) throw new Error('데이터를 불러오지 못했어요. 잠시 후 다시 시도해주세요.')
+    const tradeRes = await fetch(`${PROXY}?type=trade&code=${firstCode}`, {headers:HDR}).then(r=>r.json()).catch(()=>({ok:false}))
+    if(!tradeRes.ok || !tradeRes.data?.length) throw new Error('데이터를 불러오지 못했어요. 잠시 후 다시 시도해주세요.')
 
     result.innerHTML = '<div style="color:var(--muted);font-size:13px;text-align:center;padding:20px">AI 분석 중...</div>'
 
