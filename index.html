@@ -1162,8 +1162,8 @@ function openSheet(apt, showFavBtn=true) {
         const sorted = [...trades].sort((a,b)=>(a.date||'').localeCompare(b.date||''))
         canvas._chart = new Chart(canvas, {
           type:'line',
-          data:{labels:sorted.map(t=>t.date?.slice(2,7)||''),datasets:[{data:sorted.map(t=>Math.round((t.price||0)/100000000*100)/100),borderColor:'#e8c87a',backgroundColor:'rgba(232,200,122,.08)',borderWidth:2,pointRadius:4,pointBackgroundColor:'#e8c87a',fill:true,tension:0.3}]},
-          options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{color:'#888',font:{size:10}},grid:{color:'rgba(255,255,255,.05)'}},y:{ticks:{color:'#888',font:{size:10},callback:v=>v+'억'},grid:{color:'rgba(255,255,255,.05)'}}}}
+          data:{labels:sorted.map(t=>t.date?.slice(2,7)||''),datasets:[{data:sorted.map(t=>parseFloat((t.price||0)/100000000).toFixed(1)*1),borderColor:'#e8c87a',backgroundColor:'rgba(232,200,122,.08)',borderWidth:2,pointRadius:4,pointBackgroundColor:'#e8c87a',fill:true,tension:0.3}]},
+          options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{color:'#888',font:{size:10}},grid:{color:'rgba(255,255,255,.05)'}},y:{ticks:{color:'#888',font:{size:10},callback:v=>parseFloat(v).toFixed(1)+'억'},grid:{color:'rgba(255,255,255,.05)'}}}}
         })
       }
     } else {
@@ -1654,6 +1654,35 @@ async function runAiRecommend() {
 
     candidateApts = candidateApts.sort((a,b) => (b._score||0)-(a._score||0)).slice(0, 20)
     if(!candidateApts.length) throw new Error('구매 가능한 단지가 없어요. 예산을 늘리거나 지역을 변경해보세요.')
+
+    // ─ 전세가율 보완 (상위 5개 단지) ─
+    setStatus('전세 데이터 수집 중...')
+    const sggCodes = [...new Set(candidateApts.slice(0,5).map(a=>a.sggCd).filter(Boolean))]
+    const rentResults = await Promise.all(sggCodes.map(code =>
+      fetch(`${PROXY}?type=rent&code=${code}`, {headers:HDR}).then(r=>r.json()).catch(()=>({ok:false,data:{}}))
+    ))
+    const rentMap = {}
+    rentResults.forEach(r => { if(r.ok && r.data) Object.assign(rentMap, r.data) })
+
+    candidateApts = candidateApts.map(a => {
+      if(a.jeonseRatio > 0) return a
+      const normName = n => n?.replace(/\s+/g,'').replace(/아파트$|APT$/i,'').toLowerCase()||''
+      const keys = [a.sggCd+'_'+a.name, a.sggCd+'_'+normName(a.name), a.name, normName(a.name)]
+      let rentInfo = null
+      for(const k of keys) { if(rentMap[k]) { rentInfo = rentMap[k]; break } }
+      if(!rentInfo || !a.avgPrice) return a
+      let rentDeposit = rentInfo.latestDeposit || rentInfo.avgDeposit || 0
+      if(rentInfo.byArea && a.trades?.length) {
+        const dominant = a.trades.map(t=>Math.round(t.area||0)).filter(x=>x>0)
+        if(dominant.length) {
+          const cnt = {}; dominant.forEach(x=>cnt[x]=(cnt[x]||0)+1)
+          const topArea = parseInt(Object.entries(cnt).sort((a,b)=>b[1]-a[1])[0][0])
+          rentDeposit = rentInfo.byArea[topArea] || Object.entries(rentInfo.byArea).find(([k])=>Math.abs(parseInt(k)-topArea)<=10)?.[1] || rentDeposit
+        }
+      }
+      const jsr = rentDeposit > 0 ? Math.round(rentDeposit / a.avgPrice * 100) : 0
+      return {...a, jeonseRatio: jsr}
+    })
 
     // ─ 2. 통근 시간 계산 (카카오 대중교통) ─
     setStatus('통근 시간 계산 중...')
