@@ -903,6 +903,7 @@ body{background:#07090f;}
         <div style="font-size:11px;font-weight:600;color:var(--muted);margin-bottom:8px">📈 최근 실거래 가격 추이</div>
         <div style="position:relative;height:140px;background:rgba(255,255,255,.03);border-radius:10px;display:flex;align-items:center;justify-content:center" id="chartSkeletonWrap">
           <canvas id="dtPriceChart" style="display:none"></canvas>
+          <div id="dtPriceSummary" style="font-size:11px;color:var(--muted);margin-top:6px;text-align:center"></div>
           <div id="chartSkeleton" style="color:var(--muted);font-size:11px">로딩 중...</div>
         </div>
       </div>
@@ -1153,29 +1154,61 @@ function openSheet(apt, showFavBtn=true) {
   // 실거래/전세 렌더링
   const renderTrades = (trades, rentTrades) => {
     if($('chartSkeleton')) $('chartSkeleton').style.display = 'none'
-    const canvas = $('dtPriceChart'), skWrap = $('chartSkeletonWrap')
-    if(trades.length >= 1) {
-      if(canvas) canvas.style.display = 'block'
-      if(skWrap) skWrap.style.cssText = 'position:relative;height:140px'
-      if(canvas) {
-        if(canvas._chart) { canvas._chart.destroy(); canvas._chart = null }
-        const sorted = [...trades].sort((a,b)=>(a.date||'').localeCompare(b.date||''))
-        canvas._chart = new Chart(canvas, {
-          type:'line',
-          data:{labels:sorted.map(t=>t.date?.slice(2,7)||''),datasets:[{data:sorted.map(t=>parseFloat((t.price||0)/100000000).toFixed(1)*1),borderColor:'#e8c87a',backgroundColor:'rgba(232,200,122,.08)',borderWidth:2,pointRadius:4,pointBackgroundColor:'#e8c87a',fill:true,tension:0.3}]},
-          options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{color:'#888',font:{size:10}},grid:{color:'rgba(255,255,255,.05)'}},y:{ticks:{color:'#888',font:{size:10},callback:v=>parseFloat(v).toFixed(1)+'억'},grid:{color:'rgba(255,255,255,.05)'}}}}
-        })
-      }
-    } else {
-      if(skWrap) skWrap.style.cssText = 'position:relative;height:60px;background:rgba(255,255,255,.03);border-radius:10px;display:flex;align-items:center;justify-content:center'
-      if($('chartSkeleton')) { $('chartSkeleton').style.display='block'; $('chartSkeleton').textContent='실거래 데이터 없음' }
-    }
     rentTrades = rentTrades || []
-    if($('dtTradeList')) {
-      const buyHtml = trades.length ? trades.map(t=>`<div style="display:flex;justify-content:space-between;padding:9px 0;border-bottom:1px solid rgba(255,255,255,.04)"><div><div style="font-size:12px;font-weight:500">매매 · ${Math.round(t.area||0)}㎡ · ${t.floor||'—'}층</div><div style="font-size:10px;color:var(--muted)">${t.date||''}</div></div><div style="text-align:right"><div style="font-size:13px;font-weight:700;color:var(--gold)">${fmt(t.price)}</div></div></div>`).join('') : '<div style="color:var(--muted);font-size:11px;text-align:center;padding:12px">최근 실거래 없음</div>'
-      const rentHtml = rentTrades.length ? rentTrades.map(t=>`<div style="display:flex;justify-content:space-between;padding:9px 0;border-bottom:1px solid rgba(255,255,255,.04)"><div><div style="font-size:12px;font-weight:500">전세 · ${Math.round(t.area||0)}㎡</div><div style="font-size:10px;color:var(--muted)">${t.date||''}</div></div><div style="text-align:right"><div style="font-size:13px;font-weight:700;color:#60a5fa">${fmt(t.deposit)}</div></div></div>`).join('') : ''
-      $('dtTradeList').innerHTML = `<div style="font-size:11px;font-weight:700;color:var(--muted);margin-bottom:6px">🏠 매매 ${trades.length}건</div>${buyHtml}${rentTrades.length>0?`<div style="font-size:11px;font-weight:700;color:var(--muted);margin-top:12px;margin-bottom:6px">🔑 전세 ${rentTrades.length}건</div>${rentHtml}`:''}`
+
+    // 평형별 그룹핑
+    const areaGroups = {}
+    trades.forEach(t => {
+      const a = Math.round(t.area||0)
+      if(a > 0) { if(!areaGroups[a]) areaGroups[a] = []; areaGroups[a].push(t) }
+    })
+    const areas = Object.keys(areaGroups).map(Number).sort((a,b)=>a-b)
+    const dominantArea = areas.length ? areas.reduce((a,b) => areaGroups[a].length >= areaGroups[b].length ? a : b) : null
+
+    const renderByArea = (selectedArea) => {
+      const filtered = selectedArea ? (areaGroups[selectedArea]||[]) : trades
+      const rentFiltered = rentTrades.filter(t => !selectedArea || Math.abs(Math.round(t.area||0)-selectedArea)<=10)
+
+      // 차트
+      const canvas = $('dtPriceChart'), skWrap = $('chartSkeletonWrap')
+      if(filtered.length >= 1) {
+        if(canvas) canvas.style.display = 'block'
+        if(skWrap) skWrap.style.cssText = 'position:relative;height:140px'
+        if(canvas) {
+          if(canvas._chart) { canvas._chart.destroy(); canvas._chart = null }
+          const sorted = [...filtered].sort((a,b)=>(a.date||'').localeCompare(b.date||''))
+          const prices = sorted.map(t => parseFloat(((t.price||0)/100000000).toFixed(1)))
+          const minP = Math.min(...prices), maxP = Math.max(...prices)
+          canvas._chart = new Chart(canvas, {
+            type:'line',
+            data:{labels:sorted.map(t=>t.date?.slice(2,7)||''),datasets:[{data:prices,borderColor:'#e8c87a',backgroundColor:'rgba(232,200,122,.08)',borderWidth:2,pointRadius:4,pointBackgroundColor:'#e8c87a',fill:true,tension:0.3}]},
+            options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{color:'#888',font:{size:10}},grid:{color:'rgba(255,255,255,.05)'}},y:{ticks:{color:'#888',font:{size:10},callback:v=>v.toFixed(1)+'억'},grid:{color:'rgba(255,255,255,.05)'}}}}
+          })
+          // 가격 추이 요약
+          const summEl = $('dtPriceSummary')
+          if(summEl && sorted.length >= 2) {
+            const diff = prices[prices.length-1] - prices[0]
+            const color = diff>0?'var(--up)':diff<0?'var(--down)':'var(--muted)'
+            summEl.innerHTML = `최저 ${minP.toFixed(1)}억 → 최고 ${maxP.toFixed(1)}억 <span style="color:${color};font-weight:700">${diff>=0?'+':''}${diff.toFixed(1)}억</span>`
+          }
+        }
+      } else {
+        if(skWrap) skWrap.style.cssText = 'position:relative;height:60px;background:rgba(255,255,255,.03);border-radius:10px;display:flex;align-items:center;justify-content:center'
+        if($('chartSkeleton')) { $('chartSkeleton').style.display='block'; $('chartSkeleton').textContent='실거래 데이터 없음' }
+      }
+
+      if($('dtTradeList')) {
+        // 평형 탭
+        const tabHtml = areas.length > 1 ? `<div style="display:flex;gap:6px;margin-bottom:10px;overflow-x:auto;scrollbar-width:none">${areas.map(a=>`<button id="areaTab_${a}" style="padding:5px 10px;border-radius:8px;border:1px solid ${a===selectedArea?'var(--gold)':'var(--border)'};background:${a===selectedArea?'rgba(232,200,122,.15)':'none'};color:${a===selectedArea?'var(--gold)':'var(--muted)'};font-size:11px;cursor:pointer;flex-shrink:0">${a}㎡(${Math.round(a/3.3)}평) ${areaGroups[a].length}건</button>`).join('')}</div>` : ''
+        const buyHtml = filtered.length ? [...filtered].sort((a,b)=>(b.date||'').localeCompare(a.date||'')).map(t=>`<div style="display:flex;justify-content:space-between;padding:9px 0;border-bottom:1px solid rgba(255,255,255,.04)"><div><div style="font-size:12px;font-weight:500">매매 · ${Math.round(t.area||0)}㎡ · ${t.floor||'—'}층</div><div style="font-size:10px;color:var(--muted)">${t.date||''}</div></div><div style="text-align:right"><div style="font-size:13px;font-weight:700;color:var(--gold)">${fmt(t.price)}</div></div></div>`).join('') : '<div style="color:var(--muted);font-size:11px;text-align:center;padding:12px">해당 평형 실거래 없음</div>'
+        const rentHtml = rentFiltered.length ? `<div style="font-size:11px;font-weight:700;color:var(--muted);margin-top:12px;margin-bottom:6px">🔑 전세 ${rentFiltered.length}건</div>`+[...rentFiltered].sort((a,b)=>(b.date||'').localeCompare(a.date||'')).map(t=>`<div style="display:flex;justify-content:space-between;padding:9px 0;border-bottom:1px solid rgba(255,255,255,.04)"><div><div style="font-size:12px;font-weight:500">전세 · ${Math.round(t.area||0)}㎡</div><div style="font-size:10px;color:var(--muted)">${t.date||''}</div></div><div style="text-align:right"><div style="font-size:13px;font-weight:700;color:#60a5fa">${fmt(t.deposit)}</div></div></div>`).join('') : ''
+        $('dtTradeList').innerHTML = tabHtml + `<div style="font-size:11px;font-weight:700;color:var(--muted);margin-bottom:6px">🏠 매매 ${filtered.length}건</div>${buyHtml}${rentHtml}`
+        // 탭 이벤트
+        areas.forEach(a => { const tab = document.getElementById(`areaTab_${a}`); if(tab) tab.onclick = () => renderByArea(a) })
+      }
     }
+
+    renderByArea(dominantArea)
   }
 
   // rent 조회 + 전세가율 계산
