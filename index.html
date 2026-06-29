@@ -2295,7 +2295,8 @@ function setView(v) {
     if(listBtn) { listBtn.style.background='transparent'; listBtn.style.borderColor='var(--border)'; listBtn.style.color='var(--muted)' }
     if(listEl) listEl.style.display='none'
     if(mapEl)  mapEl.style.display='block'
-    renderMapView()
+    if(appMode === 'rent') renderRentMapView()
+    else renderMapView()
   }
 }
 
@@ -2531,6 +2532,7 @@ async function goToRentRec() {
       return
     }
 
+    lw.style.gridTemplateColumns = '1fr' // 전세는 1컬럼
     lw.innerHTML = rentApts.map(apt => {
       const depositStr = fmt(apt.avgDeposit)
       const latestTrade = apt.trades?.[0]
@@ -3418,6 +3420,85 @@ function updateMapSgg() {
     sggSel.appendChild(o)
   })
   renderMapView()
+}
+
+async function renderRentMapView() {
+  const container = $('mapKakaoMap')
+  const listEl = $('mapAptList')
+  if(listEl) listEl.innerHTML = '<div style="text-align:center;padding:20px;color:var(--muted);font-size:12px">전세 데이터 불러오는 중...</div>'
+
+  const regions = state.regions?.length ? state.regions : ['서울']
+  const budget = (state.rentBudget||30000) * 10000
+  const sgg = $('filterSigungu')?.value || ''
+  const codes = sgg ? [sgg] : (REGION_CODES[regions[0]]||'').split(',').slice(0,5).map(c=>c.trim()).filter(Boolean)
+
+  const results = await Promise.all(codes.map(code =>
+    fetch(`${PROXY}?type=rent&code=${code}`, {headers:HDR}).then(r=>r.json()).catch(()=>({ok:false,data:{}}))
+  ))
+  const rentMap = {}
+  results.forEach(r => { if(r.ok && r.data) Object.assign(rentMap, r.data) })
+
+  const data = Object.entries(rentMap)
+    .map(([k, v]) => {
+      const deposit = v.latestDeposit || v.avgDeposit || 0
+      if(!deposit || deposit > budget * 1.1) return null
+      const parts = k.split('_')
+      const name = parts.length > 1 ? parts.slice(1).join('_') : k
+      if(name.length < 2) return null
+      return { name, sggCd: parts[0], deposit, trades: v.trades||[] }
+    }).filter(Boolean)
+    .sort((a,b) => b.deposit - a.deposit)
+    .slice(0, 20)
+
+  if(listEl) {
+    listEl.innerHTML = data.slice(0,15).map(apt => `
+      <div style="background:var(--card);border-radius:12px;padding:12px 14px;margin-bottom:8px;border:1px solid var(--border)">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <div style="font-size:13px;font-weight:600">${apt.name}</div>
+          <div style="font-size:13px;font-weight:700;color:#60a5fa">${fmt(apt.deposit)}</div>
+        </div>
+        <div style="font-size:11px;color:var(--muted);margin-top:2px">최근 전세가 · ${apt.trades?.[0]?.date?.slice(0,7)||'—'}</div>
+      </div>`).join('')
+  }
+
+  // 지도 마커
+  if(!container || !window.kakao?.maps) return
+  if(!_mapInst) _mapInst = new kakao.maps.Map(container, {center: new kakao.maps.LatLng(37.5665, 126.9780), level:8})
+  _mapMarkers.forEach(m=>m.setMap(null)); _mapMarkers = []
+
+  const geocoder = new kakao.maps.services.Geocoder()
+  const ps = new kakao.maps.services.Places()
+  if(!window._geoCache) window._geoCache = {}
+
+  let idx = 0
+  function next() {
+    if(idx >= Math.min(data.length, 15)) return
+    const apt = data[idx++]
+    const region = SGG_NAMES[apt.sggCd] || regions[0]
+    const cacheKey = apt.sggCd + '_' + apt.name
+    if(window._geoCache[cacheKey]) {
+      const loc = window._geoCache[cacheKey]
+      placeRentMarker(apt, loc)
+      setTimeout(next, 30); return
+    }
+    ps.keywordSearch(`${region} ${apt.name}`, (r,s) => {
+      if(s === kakao.maps.services.Status.OK) {
+        const loc = {y:r[0].y, x:r[0].x}
+        window._geoCache[cacheKey] = loc
+        placeRentMarker(apt, loc)
+      }
+      setTimeout(next, 100)
+    })
+  }
+  next()
+
+  function placeRentMarker(apt, loc) {
+    const aptStr = encodeURIComponent(JSON.stringify(apt))
+    const content = `<div style="background:#60a5fa;color:#111;padding:4px 8px;border-radius:10px;font-size:10px;font-weight:700;white-space:nowrap;box-shadow:0 2px 8px rgba(0,0,0,.4);cursor:pointer;text-align:center">${apt.name.length>5?apt.name.slice(0,5)+'..':apt.name}<br>${fmt(apt.deposit)}</div>`
+    const overlay = new kakao.maps.CustomOverlay({position:new kakao.maps.LatLng(loc.y, loc.x), content, yAnchor:1.2})
+    overlay.setMap(_mapInst)
+    _mapMarkers.push(overlay)
+  }
 }
 
 let _mapRenderTimer = null
