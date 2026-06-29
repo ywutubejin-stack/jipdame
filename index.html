@@ -260,9 +260,14 @@ body{background:#07090f;}
 <div class="topbar">
   <div>
     <span class="logo">집담</span>
-    <span class="logo-sub">부동산 매수 결정 도우미</span>
+    <span class="logo-sub" id="logoSub">부동산 매수 결정 도우미</span>
   </div>
-  <div class="topbar-right">
+  <div class="topbar-right" style="display:flex;align-items:center;gap:8px">
+    <!-- 매매/전세 모드 토글 -->
+    <div style="display:flex;background:var(--bg3);border-radius:10px;padding:3px;border:1px solid var(--border)">
+      <button id="modeBuy" onclick="setMode('buy')" style="padding:4px 10px;border-radius:7px;border:none;background:var(--gold);color:#111;font-size:11px;font-weight:700;cursor:pointer">🏠 매매</button>
+      <button id="modeRent" onclick="setMode('rent')" style="padding:4px 10px;border-radius:7px;border:none;background:none;color:var(--muted);font-size:11px;font-weight:600;cursor:pointer">🔑 전세</button>
+    </div>
     <button class="icon-btn" id="searchToggle">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
     </button>
@@ -351,6 +356,9 @@ body{background:#07090f;}
   </div>
 
   <div class="ob-step-label">STEP 3 · 내 자본 상황</div>
+
+  <!-- 매매 조건 (기본) -->
+  <div id="buyConditions">
   <div class="ob-card">
     <div class="ob-card-title"><span>💰</span> 보유 자산 & 소득</div>
     <div class="sl-row">
@@ -381,6 +389,28 @@ body{background:#07090f;}
       <div class="pb-item"><div class="pb-label">대출 가능</div><div class="pb-val" style="color:var(--blue)" id="pbLoan">—</div></div>
       <div class="pb-item"><div class="pb-label">월 상환액</div><div class="pb-val" style="color:var(--muted)" id="pbMonthly">—</div></div>
     </div>
+  </div>
+  </div>
+
+  <!-- 전세 조건 -->
+  <div id="rentConditions" style="display:none">
+  <div class="ob-card">
+    <div class="ob-card-title"><span>🔑</span> 전세 보증금 예산</div>
+    <div class="sl-row">
+      <div class="sl-label">보증금</div>
+      <div class="sl-wrap"><input type="range" class="sl" min="0" max="200000" step="1000" value="30000" id="sl-rentBudget"></div>
+      <input type="text" class="sl-input" id="in-rentBudget" value="3" placeholder="3" style="width:60px" inputmode="decimal">
+      <span class="sl-unit">억</span>
+    </div>
+    <div style="margin-top:10px;padding:10px;background:rgba(96,165,250,.08);border-radius:10px;border:1px solid rgba(96,165,250,.2)">
+      <div style="font-size:11px;color:#60a5fa;font-weight:600;margin-bottom:4px">💡 전세 안전 체크</div>
+      <div style="font-size:11px;color:var(--muted);line-height:1.6">전세가율 80% 이하 단지를 우선 추천해요.<br>갭이 클수록 역전세 위험이 낮아요.</div>
+    </div>
+  </div>
+  <div class="power-bar" id="rentBudgetBar" style="background:rgba(96,165,250,.08);border:1px solid rgba(96,165,250,.2)">
+    <div class="power-title" style="color:#60a5fa">🔑 전세 예산</div>
+    <div class="power-main" id="rentBudgetMain" style="color:#60a5fa">—</div>
+  </div>
   </div>
 
   <div class="ob-step-label">STEP 4 · 선호 평수</div>
@@ -975,6 +1005,8 @@ function loadUserState() {
   try {
     const saved = JSON.parse(localStorage.getItem('jipdame_state') || '{}')
     return {
+      appMode: saved.appMode || 'buy',
+      rentBudget: saved.rentBudget || 30000,
       household: saved.household || 'single',
       workplace: saved.workplace || '',
       commuteTime: saved.commuteTime || 60,
@@ -991,7 +1023,7 @@ function loadUserState() {
   } catch(e) { return { purpose:'live', houseCount:0, asset:30000, income:6000, rate:3.6, power:0, maxLoan:0, monthly:0, regions:['서울'], sizes:['30'], favorites:[] } }
 }
 function saveUserState() {
-  try { localStorage.setItem('jipdame_state', JSON.stringify({ purpose:state.purpose, houseCount:state.houseCount, asset:state.asset, income:state.income, rate:state.rate, regions:state.regions, sizes:state.sizes, household:state.household, workplace:state.workplace, commuteTime:state.commuteTime, holdYears:state.holdYears })) } catch(e) {}
+  try { localStorage.setItem('jipdame_state', JSON.stringify({ purpose:state.purpose, houseCount:state.houseCount, asset:state.asset, income:state.income, rate:state.rate, regions:state.regions, sizes:state.sizes, appMode:appMode, rentBudget:state.rentBudget, household:state.household, workplace:state.workplace, commuteTime:state.commuteTime, holdYears:state.holdYears })) } catch(e) {}
 }
 const state = loadUserState()
 
@@ -1430,7 +1462,23 @@ function runAiAnalysis(apt) {
 
   // 1. 시세 추이
   if(maxPrice > minPrice*1.05) {
-    if(maxPrice > minPrice * 1.05) reasons.push({icon:'📈',text:`최근 고점 ${fmt(maxPrice)} 기준 현재가 ${fmt(price)} (${((price-maxPrice)/maxPrice*100).toFixed(1)}%)`,good:price>=maxPrice*0.95})
+    if(trades.length >= 2) {
+      // 같은 평형 거래만으로 추이 계산
+      const areaCount = {}
+      trades.forEach(t => { const a = Math.round(t.area||0); areaCount[a] = (areaCount[a]||0)+1 })
+      const mainArea = Object.entries(areaCount).sort((a,b)=>b[1]-a[1])[0]?.[0]
+      const sameTrades = trades.filter(t => Math.round(t.area||0) === parseInt(mainArea)).sort((a,b)=>(a.date||'').localeCompare(b.date||''))
+      if(sameTrades.length >= 2) {
+        const firstP = sameTrades[0].price, lastP = sameTrades[sameTrades.length-1].price
+        const maxP = Math.max(...sameTrades.map(t=>t.price)), minP = Math.min(...sameTrades.map(t=>t.price))
+        const fromPeak = lastP - maxP
+        if(fromPeak < -maxP*0.03) {
+          reasons.push({icon:'📉',text:`${mainArea}㎡ 고점 ${fmt(maxP)} 대비 현재 ${fmt(lastP)} (${((lastP-maxP)/maxP*100).toFixed(1)}%)`,good:false})
+        } else if(lastP > firstP * 1.03) {
+          reasons.push({icon:'📈',text:`${mainArea}㎡ 최근 ${fmt(firstP)} → ${fmt(lastP)} 상승세`,good:true})
+        }
+      }
+    }
   } else {
     reasons.push({icon:'📊',text:`${fmt(minPrice)}~${fmt(maxPrice)} 안정적 가격대`,good:null})
   }
@@ -1938,6 +1986,66 @@ function closeOnboarding() {
   try { localStorage.setItem('jipdame_visited', '1') } catch(e) {}
 }
 
+// 매매/전세 모드 전환
+let appMode = 'buy' // 'buy' | 'rent'
+
+function setMode(mode) {
+  appMode = mode
+  const isBuy = mode === 'buy'
+
+  // 토글 버튼 스타일
+  const buyBtn = $('modeBuy'), rentBtn = $('modeRent')
+  if(buyBtn) { buyBtn.style.background = isBuy ? 'var(--gold)' : 'none'; buyBtn.style.color = isBuy ? '#111' : 'var(--muted)' }
+  if(rentBtn) { rentBtn.style.background = !isBuy ? '#60a5fa' : 'none'; rentBtn.style.color = !isBuy ? '#111' : 'var(--muted)' }
+
+  // 로고 서브 텍스트
+  const sub = $('logoSub')
+  if(sub) sub.textContent = isBuy ? '부동산 매수 결정 도우미' : '전세 탐색 도우미'
+
+  // 내조건 섹션 전환
+  const buyC = $('buyConditions'), rentC = $('rentConditions')
+  if(buyC) buyC.style.display = isBuy ? 'block' : 'none'
+  if(rentC) rentC.style.display = !isBuy ? 'block' : 'none'
+
+  // CTA 버튼 텍스트
+  const cta = $('ctaBtn')
+  if(cta) cta.innerHTML = isBuy
+    ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg> 직접 탐색하기 (전체 추천 목록)'
+    : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/></svg> 전세 단지 탐색하기'
+
+  // AI 추천 버튼
+  const aiBtn = $('aiRecommendBtn')
+  if(aiBtn) aiBtn.innerHTML = isBuy
+    ? '<span style="font-size:22px">✨</span> AI가 최적의 단지 1개 추천해줘'
+    : '<span style="font-size:22px">🔑</span> AI가 최적 전세 단지 추천해줘'
+
+  saveUserState()
+}
+
+function updateRentBudget() {
+  const sl = $('sl-rentBudget')
+  const val = sl ? parseInt(sl.value) : 0
+  state.rentBudget = val
+  const inp = $('in-rentBudget')
+  if(inp) inp.value = (val/10000).toFixed(1)
+  const main = $('rentBudgetMain')
+  if(main) main.textContent = fmtPower(val * 10000)
+  saveUserState()
+}
+
+function initRentSlider() {
+  const sl = $('sl-rentBudget')
+  if(!sl) return
+  sl.value = state.rentBudget || 30000
+  updateRentBudget()
+  sl.addEventListener('input', updateRentBudget)
+  const inp = $('in-rentBudget')
+  if(inp) inp.addEventListener('change', () => {
+    const v = Math.round(parseFloat(inp.value) * 10000)
+    if(!isNaN(v)) { sl.value = v; state.rentBudget = v; updateRentBudget() }
+  })
+}
+
 function showOnboardingIfNew() {
   try {
     if(!localStorage.getItem('jipdame_visited')) {
@@ -2231,7 +2339,85 @@ function renderCards(list) {
 }
 
 /* ── 추천 단지 ── */
+async function goToRentRec() {
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'))
+  document.querySelectorAll('.nb').forEach(b=>b.classList.remove('active'))
+  $('page-rec')?.classList.add('active')
+  $('nb-rec')?.classList.add('active')
+
+  const lw = $('recList'); if(!lw) return
+  const sp = $('sumPower'), sd = $('sumDetail')
+  const budget = (state.rentBudget||30000) * 10000
+  if(sp) { sp.textContent = fmtPower(budget); sp.style.color = '#60a5fa' }
+  if(sd) sd.textContent = '전세 보증금 예산'
+  lw.innerHTML = '<div style="text-align:center;padding:40px;color:var(--muted)">전세 데이터 불러오는 중...</div>'
+  $('lbar')?.classList.add('on')
+
+  try {
+    const regions = state.regions?.length ? state.regions : ['서울']
+    const codes = (REGION_CODES[regions[0]] || REGION_CODES['서울']).split(',').slice(0,5)
+    const results = await Promise.all(codes.map(code =>
+      fetch(`${PROXY}?type=rent&code=${code.trim()}`, {headers:HDR}).then(r=>r.json()).catch(()=>({ok:false,data:{}}))
+    ))
+
+    // 전세 데이터 취합
+    const rentMap = {}
+    results.forEach(r => { if(r.ok && r.data) Object.assign(rentMap, r.data) })
+
+    // 단지별 최신 전세가 + 예산 필터
+    const rentApts = Object.entries(rentMap)
+      .filter(([k]) => !k.includes('_') || k.split('_')[0].length === 5) // sggCd_name 형태만
+      .map(([k, v]) => {
+        const deposit = v.latestDeposit || v.avgDeposit || 0
+        if(!deposit || deposit > budget * 1.1) return null
+        const parts = k.split('_')
+        return {
+          name: parts.slice(1).join('_') || k,
+          sggCd: parts[0],
+          avgDeposit: deposit,
+          jeonseRatio: 0,
+          trades: v.trades || [],
+          _isRent: true,
+          _score: deposit <= budget ? 70 : 50,
+        }
+      }).filter(Boolean)
+      .sort((a,b) => b.avgDeposit - a.avgDeposit)
+      .slice(0, 30)
+
+    if(!rentApts.length) {
+      lw.innerHTML = '<div style="text-align:center;padding:40px;color:var(--muted)">조건에 맞는 전세 단지가 없어요<br>예산을 늘려보세요</div>'
+      return
+    }
+
+    lw.innerHTML = rentApts.map(apt => {
+      const depositStr = fmt(apt.avgDeposit)
+      const latestTrade = apt.trades?.[0]
+      return `<div class="rc" onclick="openRentSheet(${JSON.stringify(apt).replace(/"/g,'&quot;')})">
+        <div class="rc-header">
+          <div class="rc-name">${apt.name}</div>
+          <div class="rc-score" style="color:#60a5fa">🔑 전세</div>
+        </div>
+        <div class="rc-stats" style="grid-template-columns:1fr 1fr">
+          <div class="rs"><div class="rs-label">최근 전세가</div><div class="rs-val" style="color:#60a5fa">${depositStr}</div></div>
+          <div class="rs"><div class="rs-label">최근 거래</div><div class="rs-val">${latestTrade?.date?.slice(0,7)||'—'}</div></div>
+        </div>
+      </div>`
+    }).join('')
+
+  } catch(e) {
+    lw.innerHTML = `<div style="text-align:center;padding:40px;color:var(--down)">로드 실패: ${e.message}</div>`
+  } finally {
+    $('lbar')?.classList.remove('on')
+  }
+}
+
+function openRentSheet(apt) {
+  openSheet({...apt, avgPrice: apt.avgDeposit, price: apt.avgDeposit})
+}
+
 async function goToRec() {
+  // 전세 모드면 전세 탐색으로 분기
+  if(appMode === 'rent') { goToRentRec(); return }
   // 페이지 전환 (navTo 대신 직접)
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'))
   document.querySelectorAll('.nb').forEach(b=>b.classList.remove('active'))
@@ -3448,6 +3634,9 @@ function initApp() {
   showOnboardingIfNew()
   updateMktDataDate()
   initExtraChips()
+  initRentSlider()
+  // 저장된 모드 복원
+  if(state.appMode) setMode(state.appMode)
   // 슬라이더 ↔ 입력칸 동기화
   const sl = { asset:$('sl-asset'), income:$('sl-income'), rate:$('sl-rate') }
   const inp = { asset:$('in-asset'), income:$('in-income'), rate:$('in-rate') }
