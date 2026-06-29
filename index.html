@@ -481,8 +481,10 @@ body{background:#07090f;}
     </div>
   </div>
 
-  <div class="ob-step-label">STEP 8 · 보유 기간</div>
+  <div class="ob-step-label" id="step8Label">STEP 8 · 보유 기간</div>
   <div class="ob-card">
+    <!-- 매매: 보유 기간 -->
+    <div id="holdPeriodBuy">
     <div class="ob-card-title"><span>⏱️</span> 예상 보유 기간</div>
     <div class="purpose-grid" style="grid-template-columns:repeat(4,1fr)">
       <div class="purpose-card" data-hold="3">
@@ -501,6 +503,25 @@ body{background:#07090f;}
         <div class="p-title">무기한</div>
         <div class="p-sub">실거주</div>
       </div>
+    </div>
+    </div>
+    <!-- 전세: 계약 기간 -->
+    <div id="holdPeriodRent" style="display:none">
+    <div class="ob-card-title"><span>📋</span> 전세 계약 기간</div>
+    <div class="purpose-grid" style="grid-template-columns:repeat(3,1fr)">
+      <div class="purpose-card on" data-contract="2">
+        <div class="p-title">2년</div>
+        <div class="p-sub">기본</div>
+      </div>
+      <div class="purpose-card" data-contract="4">
+        <div class="p-title">4년</div>
+        <div class="p-sub">계약갱신</div>
+      </div>
+      <div class="purpose-card" data-contract="0">
+        <div class="p-title">미정</div>
+        <div class="p-sub">협의</div>
+      </div>
+    </div>
     </div>
   </div>
 
@@ -1680,6 +1701,14 @@ function initExtraChips() {
       saveUserState()
     })
   })
+  document.querySelectorAll('[data-contract]').forEach(el => {
+    el.addEventListener('click', () => {
+      document.querySelectorAll('[data-contract]').forEach(e=>e.classList.remove('on'))
+      el.classList.add('on')
+      state.contractYears = parseInt(el.dataset.contract)
+      saveUserState()
+    })
+  })
   document.querySelectorAll('[data-hold]').forEach(el => {
     el.addEventListener('click', () => {
       document.querySelectorAll('[data-hold]').forEach(e=>e.classList.remove('on'))
@@ -1697,7 +1726,113 @@ function initExtraChips() {
   if(state.holdYears!=null) { document.querySelectorAll('[data-hold]').forEach(e=>{ e.classList.toggle('on', parseInt(e.dataset.hold)===state.holdYears) }) }
 }
 
+async function runAiRentRecommend() {
+  const btn = $('aiRecommendBtn')
+  const result = $('aiRecommendResult')
+  if(!btn || !result) return
+  btn.disabled = true
+  btn.innerHTML = '<span style="font-size:18px">⏳</span> 전세 단지 분석 중...'
+  result.style.display = 'block'
+  const setStatus = msg => result.innerHTML = `<div style="color:var(--muted);font-size:13px;text-align:center;padding:20px">${msg}</div>`
+
+  try {
+    setStatus('전세 데이터 수집 중...')
+    const budget = (state.rentBudget||30000) * 10000
+    const regions = state.regions?.length ? state.regions : ['서울']
+    const codes = (REGION_CODES[regions[0]] || REGION_CODES['서울']).split(',').slice(0,5)
+
+    const results = await Promise.all(codes.map(code =>
+      fetch(`${PROXY}?type=rent&code=${code.trim()}`, {headers:HDR}).then(r=>r.json()).catch(()=>({ok:false,data:{}}))
+    ))
+    const rentMap = {}
+    results.forEach(r => { if(r.ok && r.data) Object.assign(rentMap, r.data) })
+
+    // 예산 내 단지 수집
+    let candidates = Object.entries(rentMap)
+      .map(([k, v]) => {
+        const deposit = v.latestDeposit || v.avgDeposit || 0
+        if(!deposit || deposit > budget * 1.1) return null
+        const parts = k.split('_')
+        const name = parts.length > 1 ? parts.slice(1).join('_') : k
+        if(name.length < 2) return null
+        return { name, sggCd: parts[0], deposit, byArea: v.byArea||{}, trades: v.trades||[] }
+      }).filter(Boolean)
+      .sort((a,b) => b.deposit - a.deposit)
+      .slice(0, 15)
+
+    if(!candidates.length) throw new Error('조건에 맞는 전세 단지가 없어요. 예산을 늘려보세요.')
+
+    setStatus('AI 분석 중...')
+    const householdMap = {single:'1인 가구', couple:'신혼/부부', dual:'맞벌이', family:'자녀 있는 가족'}
+    const contractMap = {'2':'2년', '4':'4년(계약갱신)', '0':'미정'}
+
+    const prompt = `당신은 한국 최고의 전세 전문가입니다. 아래 조건에서 최적의 전세 단지 1개를 추천해주세요.
+
+## 사용자 조건
+- 전세 보증금 예산: ${(budget/100000000).toFixed(1)}억원 이하
+- 가구 유형: ${householdMap[state.household]||'미입력'}
+- 직장 위치: ${state.workplace||'미입력'}
+- 통근 허용: ${state.commuteTime||60}분 이내
+- 계약 기간: ${contractMap[String(state.contractYears||2)]||'2년'}
+- 선호 평형: ${(state.sizes||[]).join(', ')||'무관'}
+- 관심 지역: ${regions.join(', ')}
+
+## 전세 후보 단지 (예산 이하, 최신 전세가 기준)
+${candidates.map((a,i)=>`${i+1}. ${a.name} | 최근 전세가 ${(a.deposit/100000000).toFixed(1)}억`).join('\n')}
+
+## 전세 추천 기준
+1. 역전세 위험 낮은 단지 (매매가 대비 전세가율 60~75% 구간 선호)
+2. 직장 접근성
+3. 가구 유형에 맞는 학군/생활환경
+4. 계약 만료 후 재계약 수요가 충분한 단지
+
+반드시 JSON만 반환 (마크다운 없이):
+{"name":"단지명","location":"위치","deposit":"보증금","reasons":["이유1","이유2","이유3"],"safetyNote":"역전세 안전성 평가 1문장","detail":"단지 특징 및 생활환경 2-3문장","caution":"주의사항"}`
+
+    const aiRes = await fetch(`${PROXY}?type=ai`, {
+      method:'POST', headers:{...HDR,'Content-Type':'application/json'},
+      body: JSON.stringify({prompt})
+    }).then(r=>r.json())
+
+    if(!aiRes.ok) throw new Error('AI 오류')
+    const text = aiRes.text || ''
+    const jsonMatch = text.replace(/```json|```/g,'').trim().match(/\{[\s\S]*\}/)
+    if(!jsonMatch) throw new Error('AI 응답 파싱 실패. 다시 시도해주세요.')
+    const rec = JSON.parse(jsonMatch[0])
+
+    result.innerHTML = `
+      <div style="text-align:center;margin-bottom:16px">
+        <div style="font-size:11px;color:#60a5fa;font-weight:600;letter-spacing:1px;margin-bottom:6px">🔑 AI 최적 전세 추천 단지</div>
+        <div style="font-size:22px;font-weight:700;font-family:var(--serif)">${rec.name}</div>
+        <div style="font-size:13px;color:var(--muted);margin-top:4px">${rec.location} · 전세 ${rec.deposit}</div>
+      </div>
+      <div style="background:rgba(96,165,250,.08);border-radius:12px;padding:12px;margin-bottom:12px;border:1px solid rgba(96,165,250,.2)">
+        <div style="font-size:11px;font-weight:600;color:#60a5fa;margin-bottom:4px">🛡️ 역전세 안전성</div>
+        <div style="font-size:12px;line-height:1.6">${rec.safetyNote}</div>
+      </div>
+      <div style="margin-bottom:14px">
+        <div style="font-size:11px;font-weight:600;color:var(--muted);margin-bottom:8px">📌 추천 이유</div>
+        ${rec.reasons.map((r,i)=>`<div style="display:flex;gap:10px;margin-bottom:8px;font-size:13px;line-height:1.5"><span style="color:#60a5fa;font-weight:700;flex-shrink:0">${i+1}</span><span>${r}</span></div>`).join('')}
+      </div>
+      <div style="background:var(--bg3);border-radius:12px;padding:14px;margin-bottom:10px">
+        <div style="font-size:11px;font-weight:600;color:var(--muted);margin-bottom:6px">🏘️ 단지 특징</div>
+        <div style="font-size:12px;line-height:1.7">${rec.detail}</div>
+      </div>
+      <div style="background:rgba(248,113,113,.08);border-radius:10px;padding:12px;border:1px solid rgba(248,113,113,.2);margin-bottom:12px">
+        <div style="font-size:11px;font-weight:600;color:var(--down);margin-bottom:4px">⚠️ 주의사항</div>
+        <div style="font-size:12px;line-height:1.6">${rec.caution}</div>
+      </div>
+      <button onclick="$('aiRecommendResult').style.display='none';$('aiRecommendBtn').disabled=false;$('aiRecommendBtn').innerHTML='<span style=\\'font-size:18px\\'>🔑</span> AI가 최적 전세 단지 추천해줘'" style="width:100%;padding:10px;border-radius:10px;border:1px solid var(--border);background:none;color:var(--muted);font-size:12px;cursor:pointer">다시 분석하기</button>`
+
+  } catch(e) {
+    result.innerHTML = `<div style="color:var(--down);font-size:13px;text-align:center;padding:20px">분석 실패: ${e.message}</div>`
+    btn.disabled = false
+    btn.innerHTML = '<span style="font-size:18px">🔑</span> AI가 최적 전세 단지 추천해줘'
+  }
+}
+
 async function runAiRecommend() {
+  if(appMode === 'rent') { runAiRentRecommend(); return }
   const btn = $('aiRecommendBtn')
   const result = $('aiRecommendResult')
   if(!btn || !result) return
@@ -2012,6 +2147,13 @@ function setMode(mode) {
   if(cta) cta.innerHTML = isBuy
     ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg> 직접 탐색하기 (전체 추천 목록)'
     : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/></svg> 전세 단지 탐색하기'
+
+  // step8 전환
+  const step8Label = $('step8Label')
+  const holdBuy = $('holdPeriodBuy'), holdRent = $('holdPeriodRent')
+  if(step8Label) step8Label.textContent = isBuy ? 'STEP 8 · 보유 기간' : 'STEP 8 · 계약 기간'
+  if(holdBuy) holdBuy.style.display = isBuy ? 'block' : 'none'
+  if(holdRent) holdRent.style.display = !isBuy ? 'block' : 'none'
 
   // AI 추천 버튼
   const aiBtn = $('aiRecommendBtn')
