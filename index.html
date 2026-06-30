@@ -1840,7 +1840,9 @@ async function runAiRentRecommend() {
     let candidates = allRentApts
       .filter(a => a.deposit <= budget * 1.1)
       .sort((a,b) => b.deposit - a.deposit)
-      .slice(0, 15)
+    // 상위 30개 중 무작위 15개 선택 (매번 같은 단지만 나오는 것 방지)
+    const pool = candidates.slice(0, 30)
+    candidates = pool.sort(() => Math.random() - 0.5).slice(0, 15)
 
     if(candidates.length < 3) {
       // 예산 내 단지 부족 — 가장 저렴한 단지들과 비교해서 부족액 안내
@@ -1855,6 +1857,43 @@ async function runAiRentRecommend() {
       }
     }
 
+    setStatus('통근 시간·학군 정보 계산 중...')
+    const commuteMap = {}
+    const eduMap = {}
+    {
+      const top5 = candidates.slice(0, 5)
+      for(const apt of top5) {
+        const region = (() => {
+          for(const [sido, opts] of Object.entries(MAP_SGG)) {
+            const found = opts.find(([,v]) => v.split(',').includes(apt.sggCd))
+            if(found) return sido + ' ' + found[0]
+          }
+          return regions[0]
+        })()
+        try {
+          const geoRes = await fetch(`${PROXY}?type=geo&addr=${encodeURIComponent(region + ' ' + apt.name)}`, {headers:HDR}).then(r=>r.json()).catch(()=>null)
+          if(geoRes?.x && geoRes?.y) {
+            if(state.workplace) {
+              const timeRes = await fetch(`${PROXY}?type=commute&ox=${geoRes.x}&oy=${geoRes.y}&dest=${encodeURIComponent(state.workplace)}`, {headers:HDR}).then(r=>r.json()).catch(()=>null)
+              if(timeRes?.minutes) commuteMap[apt.name] = timeRes.minutes
+            }
+            const [schoolsRes, academyRes] = await Promise.all([
+              fetch(`${PROXY}?type=schools&lat=${geoRes.y}&lng=${geoRes.x}`, {headers:HDR}).then(r=>r.json()).catch(()=>({ok:false})),
+              fetch(`${PROXY}?type=academy_density&lat=${geoRes.y}&lng=${geoRes.x}`, {headers:HDR}).then(r=>r.json()).catch(()=>({ok:false})),
+            ])
+            const nearestElem = schoolsRes.ok ? schoolsRes.elementary?.[0] : null
+            const nearestMiddle = schoolsRes.ok ? schoolsRes.middle?.[0] : null
+            eduMap[apt.name] = {
+              nearestElem: nearestElem ? `${nearestElem.name}(${nearestElem.distance}m)` : '없음',
+              nearestMiddle: nearestMiddle ? `${nearestMiddle.name}(${nearestMiddle.distance}m)` : '없음',
+              academyCount: academyRes.ok ? academyRes.count : 0,
+              academyLevel: academyRes.ok ? academyRes.level : '확인불가',
+            }
+          }
+        } catch(e) {}
+      }
+    }
+
     setStatus('AI 분석 중...')
     const householdMap = {single:'1인 가구', couple:'신혼/부부', dual:'맞벌이', family:'자녀 있는 가족'}
     const contractMap = {'2':'2년', '4':'4년(계약갱신)', '0':'미정'}
@@ -1863,8 +1902,8 @@ async function runAiRentRecommend() {
 
 중요:
 - 반드시 아래 "전세 후보 단지" 목록에 있는 단지명 중 하나를 정확히 그대로 선택하세요. 목록에 없는 이름을 만들거나 "해당 없음", "데이터 내 후보 단지 없음" 같은 텍스트를 단지명으로 쓰지 마세요.
-- 제공된 데이터에 없는 사실(학교명, 지하철역명, 개발 호재 등)을 지어내지 마세요. 확실하지 않으면 "확인 필요"라고 명시하세요.
-- 학군/학교 관련 언급은 절대 하지 마세요. "학군이 좋다", "명문 학군", "학원가가 발달했다" 등 학교 품질에 대한 어떤 주장도 금지합니다. 학교 정보는 이 시스템에서 제공하지 않으므로 모르는 내용입니다.
+- 제공된 데이터에 없는 사실(지하철역명, 개발 호재 등)을 지어내지 마세요. 확실하지 않으면 "확인 필요"라고 명시하세요.
+- 학군/학교 관련해서는 후보 단지 데이터에 포함된 "초등학교/중학교/학원가 밀집도" 정보만 사용하세요. 데이터가 없는 단지는 학군을 언급하지 마세요. 학교명·거리·학원 개수 외의 학군 품질(좋다/나쁘다/명문 등)은 절대 평가하지 마세요.
 
 ## 사용자 조건
 - 전세 보증금 예산: ${(budget/100000000).toFixed(1)}억원 이하
@@ -1876,16 +1915,20 @@ async function runAiRentRecommend() {
 - 관심 지역: ${regions.join(', ')}
 
 ## 전세 후보 단지 (예산 이하, 최신 전세가 기준)
-${candidates.map((a,i)=>`${i+1}. ${a.name} | 최근 전세가 ${(a.deposit/100000000).toFixed(1)}억`).join('\n')}
+${candidates.map((a,i)=>{
+  const edu = eduMap[a.name]
+  const commute = commuteMap[a.name]
+  return `${i+1}. ${a.name} | 최근 전세가 ${(a.deposit/100000000).toFixed(1)}억${commute?` | 통근 ${commute}분`:''}${edu?`\n   - 초등학교: ${edu.nearestElem} | 중학교: ${edu.nearestMiddle} | 학원가: ${edu.academyLevel}(${edu.academyCount}개)`:''}`
+}).join('\n')}
 
 ## 전세 추천 기준
 1. 역전세 위험 낮은 단지 (매매가 대비 전세가율 60~75% 구간 선호)
-2. 직장 접근성
-3. 가구 유형에 맞는 생활환경 (학군/학교 품질에 대한 평가는 절대 하지 말 것 — 데이터가 없으므로 "학군이 좋다/우수하다/명문" 등의 표현 금지)
+2. 직장 접근성 (통근 시간 데이터가 있으면 우선 고려)
+3. 가구 유형에 맞는 생활환경 (학군 데이터가 있는 단지는 그 사실 인용 가능, 없으면 언급 금지)
 4. 계약 만료 후 재계약 수요가 충분한 단지
 
 반드시 JSON만 반환 (마크다운 없이):
-{"name":"단지명","location":"위치","deposit":"보증금","reasons":["이유1","이유2","이유3"],"safetyNote":"역전세 안전성 평가 1문장","detail":"단지 특징 2-3문장 (교통/단지규모/생활편의시설 + 후보 데이터에 학교/학원 정보가 있으면 그 사실만 인용, 없으면 학군 언급 금지)","caution":"주의사항"}`
+{"name":"단지명","location":"위치","deposit":"보증금","reasons":["이유1","이유2","이유3"],"safetyNote":"역전세 안전성 평가 1문장","detail":"단지 특징 2-3문장 (교통/단지규모/생활편의시설 + 학교/학원 데이터 있으면 인용, 없으면 학군 언급 금지)","caution":"주의사항"}`
 
     const aiRes = await fetch(`${PROXY}?type=ai`, {
       method:'POST', headers:{...HDR,'Content-Type':'application/json'},
@@ -1917,6 +1960,14 @@ ${candidates.map((a,i)=>`${i+1}. ${a.name} | 최근 전세가 ${(a.deposit/10000
         <div style="font-size:11px;font-weight:600;color:#60a5fa;margin-bottom:4px">🛡️ 역전세 안전성</div>
         <div style="font-size:12px;line-height:1.6">${rec.safetyNote}</div>
       </div>
+      ${eduMap[rec.name] ? `<div style="background:var(--bg3);border-radius:10px;padding:12px;margin-bottom:14px">
+        <div style="font-size:11px;font-weight:600;color:var(--muted);margin-bottom:8px">🏫 주변 교육환경 (실측 데이터)</div>
+        <div style="font-size:12px;line-height:1.8">
+          🎒 초등학교: ${eduMap[rec.name].nearestElem}<br>
+          📘 중학교: ${eduMap[rec.name].nearestMiddle}<br>
+          📚 학원가 밀집도: <span style="font-weight:700">${eduMap[rec.name].academyLevel}</span> (${eduMap[rec.name].academyCount}개, 800m 반경)
+        </div>
+      </div>` : ''}
       <div style="margin-bottom:14px">
         <div style="font-size:11px;font-weight:600;color:var(--muted);margin-bottom:8px">📌 추천 이유</div>
         ${rec.reasons.map((r,i)=>`<div style="display:flex;gap:10px;margin-bottom:8px;font-size:13px;line-height:1.5"><span style="color:#60a5fa;font-weight:700;flex-shrink:0">${i+1}</span><span>${r}</span></div>`).join('')}
