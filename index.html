@@ -1827,27 +1827,43 @@ async function runAiRentRecommend() {
     results.forEach(r => { if(r.ok && r.data) Object.assign(rentMap, r.data) })
 
     // 예산 내 단지 수집
-    let candidates = Object.entries(rentMap)
+    const allRentApts = Object.entries(rentMap)
       .map(([k, v]) => {
         const deposit = v.latestDeposit || v.avgDeposit || 0
-        if(!deposit || deposit > budget * 1.1) return null
+        if(!deposit) return null
         const parts = k.split('_')
         const name = parts.length > 1 ? parts.slice(1).join('_') : k
         if(name.length < 2) return null
         return { name, sggCd: parts[0], deposit, byArea: v.byArea||{}, trades: v.trades||[] }
       }).filter(Boolean)
+
+    let candidates = allRentApts
+      .filter(a => a.deposit <= budget * 1.1)
       .sort((a,b) => b.deposit - a.deposit)
       .slice(0, 15)
 
-    if(!candidates.length) throw new Error('조건에 맞는 전세 단지가 없어요. 예산을 늘려보세요.')
+    if(candidates.length < 3) {
+      // 예산 내 단지 부족 — 가장 저렴한 단지들과 비교해서 부족액 안내
+      const cheapest = [...allRentApts].sort((a,b)=>a.deposit-b.deposit).slice(0,3)
+      if(!cheapest.length) throw new Error('해당 지역에 전세 데이터가 없어요. 지역을 변경해보세요.')
+      const minDeposit = cheapest[0].deposit
+      const shortfall = minDeposit - budget
+      if(shortfall > 0) {
+        throw new Error(`현재 예산(${(budget/100000000).toFixed(1)}억)으로는 부족해요. 가장 저렴한 단지(${cheapest[0].name})가 ${(minDeposit/100000000).toFixed(1)}억으로, ${(shortfall/100000000).toFixed(1)}억 더 필요해요.`)
+      } else {
+        throw new Error(`예산 내 단지가 ${candidates.length}개뿐이에요. 예산을 늘리거나 지역을 변경해서 더 많은 후보로 비교해보세요.`)
+      }
+    }
 
     setStatus('AI 분석 중...')
     const householdMap = {single:'1인 가구', couple:'신혼/부부', dual:'맞벌이', family:'자녀 있는 가족'}
     const contractMap = {'2':'2년', '4':'4년(계약갱신)', '0':'미정'}
 
-    const prompt = `당신은 한국 최고의 전세 전문가입니다. 아래 조건에서 최적의 전세 단지 1개를 추천해주세요.
+    const prompt = `당신은 한국 최고의 전세 전문가입니다. 아래 후보 목록 중에서만 최적의 전세 단지 1개를 선택해 추천해주세요.
 
-중요: 제공된 데이터에 없는 사실(학교명, 지하철역명, 개발 호재 등)을 지어내지 마세요. 확실하지 않으면 "확인 필요"라고 명시하세요.
+중요:
+- 반드시 아래 "전세 후보 단지" 목록에 있는 단지명 중 하나를 정확히 그대로 선택하세요. 목록에 없는 이름을 만들거나 "해당 없음", "데이터 내 후보 단지 없음" 같은 텍스트를 단지명으로 쓰지 마세요.
+- 제공된 데이터에 없는 사실(학교명, 지하철역명, 개발 호재 등)을 지어내지 마세요. 확실하지 않으면 "확인 필요"라고 명시하세요.
 
 ## 사용자 조건
 - 전세 보증금 예산: ${(budget/100000000).toFixed(1)}억원 이하
@@ -1881,7 +1897,8 @@ ${candidates.map((a,i)=>`${i+1}. ${a.name} | 최근 전세가 ${(a.deposit/10000
     if(!jsonMatch) throw new Error('AI 응답 파싱 실패. 다시 시도해주세요.')
     const rec = JSON.parse(jsonMatch[0])
 
-    const recApt = candidates.find(a=>a.name===rec.name) || candidates[0]
+    const recApt = candidates.find(a=>a.name===rec.name)
+    if(!recApt) throw new Error('AI가 유효하지 않은 단지를 추천했어요. 다시 시도해주세요.')
     const recAptStr = recApt ? encodeURIComponent(JSON.stringify({
       ...recApt, avgPrice: recApt.deposit, price: recApt.deposit, _isRent: true
     })) : ''
@@ -1910,7 +1927,9 @@ ${candidates.map((a,i)=>`${i+1}. ${a.name} | 최근 전세가 ${(a.deposit/10000
         <div style="font-size:11px;font-weight:600;color:var(--down);margin-bottom:4px">⚠️ 주의사항</div>
         <div style="font-size:12px;line-height:1.6">${rec.caution}</div>
       </div>
-      <button onclick="$('aiRecommendResult').style.display='none';$('aiRecommendBtn').disabled=false;$('aiRecommendBtn').innerHTML='<span style=\\'font-size:18px\\'>🔑</span> AI가 최적 전세 단지 추천해줘'" style="width:100%;padding:10px;border-radius:10px;border:1px solid var(--border);background:none;color:var(--muted);font-size:12px;cursor:pointer">다시 분석하기</button>`
+`
+    btn.disabled = false
+    btn.innerHTML = '<span style="font-size:22px">🔑</span> AI가 최적 전세 단지 추천해줘'
 
     // 지도 렌더링
     if(recApt && window.kakao?.maps) {
@@ -1999,8 +2018,44 @@ async function runAiRecommend() {
       })
     }
 
+    // 전체 데이터 보관 (예산 부족분 계산용)
+    let allDataForBudget = allAptData?.length ? allAptData : []
+    if(!allDataForBudget.length) {
+      const regions2 = state.regions?.length ? state.regions : ['서울']
+      const codes2 = regions2.flatMap(r => {
+        const rc = REGION_CODES[r] || ''
+        return rc.split(',').filter((_,i) => i % 3 === 0).slice(0,3).map(c=>c.trim()).filter(Boolean)
+      })
+      const results2 = await Promise.all(codes2.map(code =>
+        fetch(`${PROXY}?type=trade&code=${code}`, {headers:HDR}).then(r=>r.json()).catch(()=>({ok:false,data:[]}))
+      ))
+      allDataForBudget = results2.flatMap(r => r.ok ? (r.data||[]) : [])
+    }
+
     candidateApts = candidateApts.sort((a,b) => (b._score||0)-(a._score||0)).slice(0, 20)
-    if(!candidateApts.length) throw new Error('구매 가능한 단지가 없어요. 예산을 늘리거나 지역을 변경해보세요.')
+    if(candidateApts.length < 3) {
+      const sizeFiltered = sizes.length && !sizes.includes('all')
+        ? allDataForBudget.filter(a => {
+            const area = a.area||0
+            return sizes.some(s => {
+              if(s==='10') return area <= 40
+              if(s==='20') return area > 40 && area <= 66
+              if(s==='30') return area > 66 && area <= 100
+              if(s==='40') return area > 100 && area <= 130
+              if(s==='50') return area > 130
+              return true
+            })
+          })
+        : allDataForBudget
+      const cheapest = [...sizeFiltered].filter(a=>a.avgPrice>0).sort((a,b)=>a.avgPrice-b.avgPrice)[0]
+      if(!cheapest) throw new Error('해당 조건에 맞는 단지 데이터가 없어요. 지역이나 평형을 변경해보세요.')
+      const shortfall = cheapest.avgPrice - power
+      if(shortfall > 0) {
+        throw new Error(`현재 구매력(${(power/100000000).toFixed(1)}억)으로는 부족해요. 가장 저렴한 단지(${cheapest.name})가 ${(cheapest.avgPrice/100000000).toFixed(1)}억으로, ${(shortfall/100000000).toFixed(1)}억 더 필요해요.`)
+      } else {
+        throw new Error(`구매 가능한 단지가 ${candidateApts.length}개뿐이에요. 예산을 늘리거나 지역/평형을 변경해보세요.`)
+      }
+    }
 
     // ─ 전세가율 보완 (상위 5개 단지) ─
     setStatus('전세 데이터 수집 중...')
@@ -2130,7 +2185,8 @@ ${aptAnalysis.map((a,i) => `${i+1}. ${a.name} (${a.sigungu})
     try { rec = JSON.parse(jsonMatch[0]) }
     catch(e) { throw new Error('JSON 파싱 실패. 다시 시도해주세요.') }
 
-    const recApt = candidateApts.find(a=>a.name===rec.name) || candidateApts[0]
+    const recApt = candidateApts.find(a=>a.name===rec.name)
+    if(!recApt) throw new Error('AI가 유효하지 않은 단지를 추천했어요. 다시 시도해주세요.')
     const aptStr = encodeURIComponent(JSON.stringify(recApt))
     const timingColor = rec.timing?.includes('적기') ? 'var(--up)' : rec.timing?.includes('6개월') ? 'var(--gold)' : 'var(--down)'
     const recAnalysis = aptAnalysis.find(a=>a.name===rec.name) || aptAnalysis[0]
@@ -2189,7 +2245,9 @@ ${aptAnalysis.map((a,i) => `${i+1}. ${a.name} (${a.sigungu})
         <div style="font-size:12px;line-height:1.6">${rec.caution}</div>
       </div>
 
-      <button onclick="$('aiRecommendResult').style.display='none';$('aiRecommendBtn').disabled=false;$('aiRecommendBtn').innerHTML='<span style=\\'font-size:18px\\'>✨</span> AI가 최적의 단지 1개 추천해줘'" style="width:100%;padding:10px;border-radius:10px;border:1px solid var(--border);background:none;color:var(--muted);font-size:12px;cursor:pointer">다시 분석하기</button>`
+`
+    btn.disabled = false
+    btn.innerHTML = '<span style="font-size:22px">✨</span> AI가 최적의 단지 1개 추천해줘'
 
     // 지도 렌더링
     if(recApt && window.kakao?.maps) {
