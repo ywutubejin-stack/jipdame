@@ -2002,16 +2002,30 @@ ${candidates.map((a,i)=>{
         })
         const geocoder = new kakao.maps.services.Geocoder()
         const ps = new kakao.maps.services.Places()
-        const region = recApt.sigungu || rec.location || ''
+        // sggCd로 정확한 "시도 구" 명칭 역조회 (키워드 검색 정확도 향상)
+        const preciseRegion = (() => {
+          if(recApt.sigungu) return recApt.sigungu
+          for(const [sido, opts] of Object.entries(MAP_SGG)) {
+            const found = opts.find(([,v]) => v.split(',').includes(recApt.sggCd))
+            if(found) return sido + ' ' + found[0]
+          }
+          return rec.location || ''
+        })()
         const onFound = (y, x) => {
           const pos = new kakao.maps.LatLng(y, x)
           map.setCenter(pos)
           const content = `<div style="background:#60a5fa;color:#111;padding:6px 10px;border-radius:10px;font-size:11px;font-weight:700;white-space:nowrap;box-shadow:0 2px 8px rgba(0,0,0,.4)">${rec.name}</div>`
           new kakao.maps.CustomOverlay({position:pos, content, yAnchor:1.4}).setMap(map)
         }
-        ps.keywordSearch(`${region} ${rec.name}`, (r,s) => {
-          if(s === kakao.maps.services.Status.OK) onFound(r[0].y, r[0].x)
-          else geocoder.addressSearch(region, (r2,s2) => { if(s2===kakao.maps.services.Status.OK) onFound(r2[0].y, r2[0].x) })
+        ps.keywordSearch(`${preciseRegion} ${rec.name}`, (r,s) => {
+          if(s === kakao.maps.services.Status.OK && r.length) {
+            // 정확히 이름이 일치하는 결과 우선 선택
+            const exact = r.find(item => item.place_name.replace(/\s/g,'') === rec.name.replace(/\s/g,''))
+            const best = exact || r[0]
+            onFound(best.y, best.x)
+          } else {
+            geocoder.addressSearch(preciseRegion, (r2,s2) => { if(s2===kakao.maps.services.Status.OK) onFound(r2[0].y, r2[0].x) })
+          }
         })
       }
     }
@@ -2363,13 +2377,17 @@ ${aptAnalysis.map((a,i) => `${i+1}. ${a.name} (${a.sigungu})
           const content = `<div style="background:${color};color:#111;padding:6px 10px;border-radius:10px;font-size:11px;font-weight:700;white-space:nowrap;box-shadow:0 2px 8px rgba(0,0,0,.4)">${rec.name}</div>`
           new kakao.maps.CustomOverlay({position:pos, content, yAnchor:1.4}).setMap(map)
         }
+        const pickBest = (r) => {
+          const exact = r.find(item => item.place_name.replace(/\s/g,'') === rec.name.replace(/\s/g,''))
+          return exact || r[0]
+        }
         if(jibun) {
           geocoder.addressSearch(`${region} ${dong} ${jibun}`, (r,s) => {
             if(s === kakao.maps.services.Status.OK) onFound(r[0].y, r[0].x)
-            else ps.keywordSearch(`${region} ${rec.name}`, (r2,s2) => { if(s2===kakao.maps.services.Status.OK) onFound(r2[0].y, r2[0].x) })
+            else ps.keywordSearch(`${region} ${rec.name}`, (r2,s2) => { if(s2===kakao.maps.services.Status.OK && r2.length) { const b=pickBest(r2); onFound(b.y, b.x) } })
           })
         } else {
-          ps.keywordSearch(`${region} ${dong} ${rec.name}`, (r,s) => { if(s===kakao.maps.services.Status.OK) onFound(r[0].y, r[0].x) })
+          ps.keywordSearch(`${region} ${dong} ${rec.name}`, (r,s) => { if(s===kakao.maps.services.Status.OK && r.length) { const b=pickBest(r); onFound(b.y, b.x) } })
         }
       }
     }
