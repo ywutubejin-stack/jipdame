@@ -1864,6 +1864,7 @@ async function runAiRentRecommend() {
 중요:
 - 반드시 아래 "전세 후보 단지" 목록에 있는 단지명 중 하나를 정확히 그대로 선택하세요. 목록에 없는 이름을 만들거나 "해당 없음", "데이터 내 후보 단지 없음" 같은 텍스트를 단지명으로 쓰지 마세요.
 - 제공된 데이터에 없는 사실(학교명, 지하철역명, 개발 호재 등)을 지어내지 마세요. 확실하지 않으면 "확인 필요"라고 명시하세요.
+- 학군/학교 관련 언급은 절대 하지 마세요. "학군이 좋다", "명문 학군", "학원가가 발달했다" 등 학교 품질에 대한 어떤 주장도 금지합니다. 학교 정보는 이 시스템에서 제공하지 않으므로 모르는 내용입니다.
 
 ## 사용자 조건
 - 전세 보증금 예산: ${(budget/100000000).toFixed(1)}억원 이하
@@ -1880,11 +1881,11 @@ ${candidates.map((a,i)=>`${i+1}. ${a.name} | 최근 전세가 ${(a.deposit/10000
 ## 전세 추천 기준
 1. 역전세 위험 낮은 단지 (매매가 대비 전세가율 60~75% 구간 선호)
 2. 직장 접근성
-3. 가구 유형에 맞는 생활환경 (학군은 실제 확인된 정보가 없으면 단정하지 말 것)
+3. 가구 유형에 맞는 생활환경 (학군/학교 품질에 대한 평가는 절대 하지 말 것 — 데이터가 없으므로 "학군이 좋다/우수하다/명문" 등의 표현 금지)
 4. 계약 만료 후 재계약 수요가 충분한 단지
 
 반드시 JSON만 반환 (마크다운 없이):
-{"name":"단지명","location":"위치","deposit":"보증금","reasons":["이유1","이유2","이유3"],"safetyNote":"역전세 안전성 평가 1문장","detail":"단지 특징 및 생활환경 2-3문장 (학교명·구체적 시설명은 확실하지 않으면 일반적 표현으로, 모르면 \"학군 정보는 직접 확인 권장\"처럼 명시)","caution":"주의사항"}`
+{"name":"단지명","location":"위치","deposit":"보증금","reasons":["이유1","이유2","이유3"],"safetyNote":"역전세 안전성 평가 1문장","detail":"단지 특징 2-3문장 (교통/단지규모/생활편의시설 + 후보 데이터에 학교/학원 정보가 있으면 그 사실만 인용, 없으면 학군 언급 금지)","caution":"주의사항"}`
 
     const aiRes = await fetch(`${PROXY}?type=ai`, {
       method:'POST', headers:{...HDR,'Content-Type':'application/json'},
@@ -2087,18 +2088,35 @@ async function runAiRecommend() {
       return {...a, jeonseRatio: jsr}
     })
 
-    // ─ 2. 통근 시간 계산 (카카오 대중교통) ─
-    setStatus('통근 시간 계산 중...')
+    // ─ 2. 통근 시간 + 학군 데이터 계산 (카카오) ─
+    setStatus('통근 시간·학군 정보 계산 중...')
     const commuteMap = {}
-    if(state.workplace) {
+    const eduMap = {}
+    {
       const top5 = candidateApts.slice(0, 5)
       for(const apt of top5) {
         const addr = (apt.sigungu||'') + ' ' + (apt.dong||apt.umdNm||'')
         try {
           const geoRes = await fetch(`${PROXY}?type=geo&addr=${encodeURIComponent(addr)}`, {headers:HDR}).then(r=>r.json()).catch(()=>null)
           if(geoRes?.x && geoRes?.y) {
-            const timeRes = await fetch(`${PROXY}?type=commute&ox=${geoRes.x}&oy=${geoRes.y}&dest=${encodeURIComponent(state.workplace)}`, {headers:HDR}).then(r=>r.json()).catch(()=>null)
-            if(timeRes?.minutes) commuteMap[apt.name] = timeRes.minutes
+            // 통근 시간
+            if(state.workplace) {
+              const timeRes = await fetch(`${PROXY}?type=commute&ox=${geoRes.x}&oy=${geoRes.y}&dest=${encodeURIComponent(state.workplace)}`, {headers:HDR}).then(r=>r.json()).catch(()=>null)
+              if(timeRes?.minutes) commuteMap[apt.name] = timeRes.minutes
+            }
+            // 학교 + 학원가 밀집도
+            const [schoolsRes, academyRes] = await Promise.all([
+              fetch(`${PROXY}?type=schools&lat=${geoRes.y}&lng=${geoRes.x}`, {headers:HDR}).then(r=>r.json()).catch(()=>({ok:false})),
+              fetch(`${PROXY}?type=academy_density&lat=${geoRes.y}&lng=${geoRes.x}`, {headers:HDR}).then(r=>r.json()).catch(()=>({ok:false})),
+            ])
+            const nearestElem = schoolsRes.ok ? schoolsRes.elementary?.[0] : null
+            const nearestMiddle = schoolsRes.ok ? schoolsRes.middle?.[0] : null
+            eduMap[apt.name] = {
+              nearestElem: nearestElem ? `${nearestElem.name}(${nearestElem.distance}m)` : '없음',
+              nearestMiddle: nearestMiddle ? `${nearestMiddle.name}(${nearestMiddle.distance}m)` : '없음',
+              academyCount: academyRes.ok ? academyRes.count : 0,
+              academyLevel: academyRes.ok ? academyRes.level : '확인불가',
+            }
           }
         } catch(e) {}
       }
@@ -2130,6 +2148,7 @@ async function runAiRecommend() {
         score: a._score || 0,
         commute: commute ? commute + '분' : '미측정',
         shortage: loan > 0 ? loan + '억 부족' : '구매가능',
+        edu: eduMap[a.name] || null,
       }
     })
 
@@ -2137,7 +2156,7 @@ async function runAiRecommend() {
     setStatus('AI 분석 중...')
     const prompt = `당신은 한국 최고의 부동산 투자 전문가입니다. 아래 실거래 데이터와 사용자 조건을 정밀 분석해 최적의 아파트 1개를 추천하세요.
 
-중요: 제공된 데이터에 없는 사실(학교명, 지하철역명, 개발 호재 등)을 지어내지 마세요. 확실하지 않으면 "확인 필요"라고 명시하세요.
+중요: 제공된 데이터에 없는 사실(지하철역명, 개발 호재 등)을 지어내지 마세요. 확실하지 않으면 "확인 필요"라고 명시하세요. 학군/학교 관련해서는 후보 단지 데이터에 포함된 "가장 가까운 초등학교/중학교", "학원가 밀집도" 정보만 사용하세요. 이 데이터가 없는 단지는 학군을 언급하지 마세요. 학교 이름이나 거리, 학원 개수 외의 학군 품질(좋다/나쁘다/명문 등)은 절대 평가하지 마세요.
 
 ## 사용자 재무 조건
 - 총 구매력: ${(power/100000000).toFixed(1)}억원 (자산 ${(state.asset/10000).toFixed(1)}억 + 최대대출)
@@ -2157,7 +2176,7 @@ ${aptAnalysis.map((a,i) => `${i+1}. ${a.name} (${a.sigungu})
    - 평균 매매가: ${a.price}억 | 전세가율: ${a.jsr} | 갭투자금: ${a.gap}
    - 최근 거래량: ${a.count}건 | 건축: ${a.age} | ${a.redev}
    - 최근 가격 추이: ${a.trend} | 집담점수: ${a.score}점
-   - 통근 시간: ${a.commute} | 자금 상황: ${a.shortage}`).join('\n')}
+   - 통근 시간: ${a.commute} | 자금 상황: ${a.shortage}${a.edu ? `\n   - 가장 가까운 초등학교: ${a.edu.nearestElem} | 중학교: ${a.edu.nearestMiddle} | 학원가 밀집도: ${a.edu.academyLevel}(${a.edu.academyCount}개, 800m 반경)` : ''}`).join('\n')}
 
 ## 분석 요청
 위 데이터를 바탕으로:
@@ -2165,7 +2184,7 @@ ${aptAnalysis.map((a,i) => `${i+1}. ${a.name} (${a.sigungu})
 2. 추천 이유 3가지 — 반드시 위 수치를 인용할 것 (예: "전세가율 68%로 갭 3.2억, 실투자금 부담 낮음")
 3. 비추천 단지 중 아쉬운 점 1가지 (비교 근거 제시)
 4. 매수 타이밍: 금리/전세가율/거래량 데이터 근거로 판단
-5. 단지 상세: 실거주 관점 설명 (교통/생활인프라/단지특징 — 단, 학교명·지하철역명 등 구체적 사실은 확실하지 않으면 단정하지 말고 일반적 표현 사용. 예: "도보 학교 있음"이 아니라 "학군 정보는 별도 확인 필요"처럼 모를 땐 모른다고 명시)
+5. 단지 상세: 실거주 관점 설명 (교통/생활인프라/단지특징. 후보 데이터에 학교/학원가 정보가 있으면 그 사실만 인용 가능. 데이터 없으면 학군 언급 금지)
 6. 핵심 리스크 1가지
 
 반드시 JSON만 반환 (마크다운 없이):
@@ -2217,6 +2236,15 @@ ${aptAnalysis.map((a,i) => `${i+1}. ${a.name} (${a.sigungu})
         <div style="background:var(--bg3);border-radius:10px;padding:10px;text-align:center">
           <div style="font-size:10px;color:var(--muted)">집담점수</div>
           <div style="font-size:14px;font-weight:700;color:var(--gold)">${recAnalysis.score}점</div>
+        </div>
+      </div>` : ''}
+
+      ${recAnalysis?.edu ? `<div style="background:var(--bg3);border-radius:10px;padding:12px;margin-bottom:14px">
+        <div style="font-size:11px;font-weight:600;color:var(--muted);margin-bottom:8px">🏫 주변 교육환경 (실측 데이터)</div>
+        <div style="font-size:12px;line-height:1.8">
+          🎒 초등학교: ${recAnalysis.edu.nearestElem}<br>
+          📘 중학교: ${recAnalysis.edu.nearestMiddle}<br>
+          📚 학원가 밀집도: <span style="font-weight:700">${recAnalysis.edu.academyLevel}</span> (${recAnalysis.edu.academyCount}개, 800m 반경)
         </div>
       </div>` : ''}
 
