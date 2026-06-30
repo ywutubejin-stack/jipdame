@@ -1900,6 +1900,8 @@ async function runAiRentRecommend() {
 
     const prompt = `당신은 한국 최고의 전세 전문가입니다. 아래 후보 목록 중에서만 최적의 전세 단지 1개를 선택해 추천해주세요.
 
+절대 규칙: name 필드에는 반드시 "전세 후보 단지" 목록에 있는 단지명을 토씨 하나 틀리지 않고 그대로 복사해서 넣으세요. 목록은 ${candidates.length}개이며, 그중 하나를 선택하는 것입니다. "해당 없음", "추천 불가", "데이터 없음" 같은 답은 허용되지 않습니다. 반드시 목록 중 하나를 선택해야 합니다.
+
 중요:
 - 반드시 아래 "전세 후보 단지" 목록에 있는 단지명 중 하나를 정확히 그대로 선택하세요. 목록에 없는 이름을 만들거나 "해당 없음", "데이터 내 후보 단지 없음" 같은 텍스트를 단지명으로 쓰지 마세요.
 - 제공된 데이터에 없는 사실(지하철역명, 개발 호재 등)을 지어내지 마세요. 확실하지 않으면 "확인 필요"라고 명시하세요.
@@ -1930,20 +1932,27 @@ ${candidates.map((a,i)=>{
 반드시 JSON만 반환 (마크다운 없이):
 {"name":"단지명","location":"위치","deposit":"보증금","reasons":["이유1","이유2","이유3"],"safetyNote":"역전세 안전성 평가 1문장","detail":"단지 특징 2-3문장 (교통/단지규모/생활편의시설 + 학교/학원 데이터 있으면 인용, 없으면 학군 언급 금지)","caution":"주의사항"}`
 
-    const aiRes = await fetch(`${PROXY}?type=ai`, {
-      method:'POST', headers:{...HDR,'Content-Type':'application/json'},
-      body: JSON.stringify({prompt})
-    }).then(r=>r.json())
+    const callAi = async () => {
+      const res = await fetch(`${PROXY}?type=ai`, {
+        method:'POST', headers:{...HDR,'Content-Type':'application/json'},
+        body: JSON.stringify({prompt})
+      }).then(r=>r.json())
+      if(!res.ok) throw new Error('AI 오류')
+      const t = res.text || ''
+      const m = t.replace(/```json|```/g,'').trim().match(/\{[\s\S]*\}/)
+      if(!m) return null
+      try { return JSON.parse(m[0]) } catch(e) { return null }
+    }
 
-    if(!aiRes.ok) throw new Error('AI 오류')
-    const text = aiRes.text || ''
-    const jsonMatch = text.replace(/```json|```/g,'').trim().match(/\{[\s\S]*\}/)
-    if(!jsonMatch) throw new Error('AI 응답 파싱 실패. 다시 시도해주세요.')
-    const rec = JSON.parse(jsonMatch[0])
-
-    const recApt = candidates.find(a=>a.name===rec.name)
-    console.log('[debug] rec.name:', rec.name, '| recApt.name:', recApt?.name, '| match count:', candidates.filter(a=>a.name===rec.name).length)
-    if(!recApt) throw new Error('AI가 유효하지 않은 단지를 추천했어요. 다시 시도해주세요.')
+    let rec = await callAi()
+    let recApt = rec ? candidates.find(a=>a.name===rec.name) : null
+    if(!recApt) {
+      // 1회 재시도
+      setStatus('다시 분석 중...')
+      rec = await callAi()
+      recApt = rec ? candidates.find(a=>a.name===rec.name) : null
+    }
+    if(!rec || !recApt) throw new Error('AI 응답을 처리하지 못했어요. 다시 시도해주세요.')
     const recAptStr = recApt ? encodeURIComponent(JSON.stringify({
       ...recApt, avgPrice: recApt.deposit, price: recApt.deposit, _isRent: true
     })) : ''
@@ -2207,6 +2216,8 @@ async function runAiRecommend() {
     setStatus('AI 분석 중...')
     const prompt = `당신은 한국 최고의 부동산 투자 전문가입니다. 아래 실거래 데이터와 사용자 조건을 정밀 분석해 최적의 아파트 1개를 추천하세요.
 
+절대 규칙: name 필드에는 반드시 아래 "후보 단지 상세 분석" 목록에 있는 단지명을 토씨 하나 틀리지 않고 그대로 복사해서 넣으세요. 목록은 ${aptAnalysis.length}개이며, 그중 하나를 선택하는 것입니다. "해당 없음" 등은 허용되지 않습니다.
+
 중요: 제공된 데이터에 없는 사실(지하철역명, 개발 호재 등)을 지어내지 마세요. 확실하지 않으면 "확인 필요"라고 명시하세요. 학군/학교 관련해서는 후보 단지 데이터에 포함된 "가장 가까운 초등학교/중학교", "학원가 밀집도" 정보만 사용하세요. 이 데이터가 없는 단지는 학군을 언급하지 마세요. 학교 이름이나 거리, 학원 개수 외의 학군 품질(좋다/나쁘다/명문 등)은 절대 평가하지 마세요.
 
 ## 사용자 재무 조건
@@ -2241,23 +2252,27 @@ ${aptAnalysis.map((a,i) => `${i+1}. ${a.name} (${a.sigungu})
 반드시 JSON만 반환 (마크다운 없이):
 {"name":"단지명","location":"위치","price":"X.X억","reasons":["수치 인용한 이유1","수치 인용한 이유2","수치 인용한 이유3"],"notPicked":"아쉬운 단지명과 이유","timing":"지금 매수 적기 / 6개월 후 권장 / 1년 이상 관망","timingReason":"금리/전세가율/거래량 근거 포함 2-3문장","detail":"실거주 관점 상세 설명 3-4문장","caution":"핵심 리스크"}`
 
-    const aiRes = await fetch(`${PROXY}?type=ai`, {
-      method: 'POST',
-      headers: {...HDR, 'Content-Type': 'application/json'},
-      body: JSON.stringify({prompt})
-    }).then(r=>r.json())
+    const callAi = async () => {
+      const res = await fetch(`${PROXY}?type=ai`, {
+        method: 'POST',
+        headers: {...HDR, 'Content-Type': 'application/json'},
+        body: JSON.stringify({prompt})
+      }).then(r=>r.json())
+      if(!res.ok) throw new Error('AI 오류')
+      const t = res.text || ''
+      const m = t.replace(/```json|```/g, '').trim().match(/\{[\s\S]*\}/)
+      if(!m) return null
+      try { return JSON.parse(m[0]) } catch(e) { return null }
+    }
 
-    if(!aiRes.ok) throw new Error('AI 오류')
-    const text = aiRes.text || ''
-    const cleaned = text.replace(/```json|```/g, '').trim()
-    const jsonMatch = cleaned.match(/\{[\s\S]*\}/)
-    if(!jsonMatch) throw new Error('AI 응답을 파싱할 수 없어요. 다시 시도해주세요.')
-    let rec
-    try { rec = JSON.parse(jsonMatch[0]) }
-    catch(e) { throw new Error('JSON 파싱 실패. 다시 시도해주세요.') }
-
-    const recApt = candidateApts.find(a=>a.name===rec.name)
-    if(!recApt) throw new Error('AI가 유효하지 않은 단지를 추천했어요. 다시 시도해주세요.')
+    let rec = await callAi()
+    let recApt = rec ? candidateApts.find(a=>a.name===rec.name) : null
+    if(!recApt) {
+      setStatus('다시 분석 중...')
+      rec = await callAi()
+      recApt = rec ? candidateApts.find(a=>a.name===rec.name) : null
+    }
+    if(!rec || !recApt) throw new Error('AI 응답을 처리하지 못했어요. 다시 시도해주세요.')
     const aptStr = encodeURIComponent(JSON.stringify(recApt))
     const timingColor = rec.timing?.includes('적기') ? 'var(--up)' : rec.timing?.includes('6개월') ? 'var(--gold)' : 'var(--down)'
     const recAnalysis = aptAnalysis.find(a=>a.name===rec.name) || aptAnalysis[0]
