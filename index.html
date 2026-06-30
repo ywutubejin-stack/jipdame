@@ -2273,7 +2273,7 @@ ${aptAnalysis.map((a,i) => `${i+1}. ${a.name} (${a.sigungu})
 위 데이터를 바탕으로:
 1. 최적 단지 1개 선정 (반드시 평균가 ${(power/100000000).toFixed(1)}억 이하)
 2. 추천 이유 3가지 — 반드시 위 수치를 인용할 것 (예: "전세가율 68%로 갭 3.2억, 실투자금 부담 낮음")
-3. 비추천 단지 중 아쉬운 점 1가지 (비교 근거 제시)
+3. 비추천 단지 1개 — 반드시 위 "후보 단지 상세 분석" 목록에 있는 단지 중에서만 선택하고, 그 이유를 데이터 근거로 제시 (목록 밖의 단지를 언급하지 마세요)
 4. 매수 타이밍: 금리/전세가율/거래량 데이터 근거로 판단
 5. 단지 상세: 실거주 관점 설명 (교통/생활인프라/단지특징. 후보 데이터에 학교/학원가 정보가 있으면 그 사실만 인용 가능. 데이터 없으면 학군 언급 금지)
 6. 핵심 리스크 1가지
@@ -2302,6 +2302,10 @@ ${aptAnalysis.map((a,i) => `${i+1}. ${a.name} (${a.sigungu})
       recApt = rec ? candidateApts.find(a=>a.name===rec.name) : null
     }
     if(!rec || !recApt) throw new Error('AI 응답을 처리하지 못했어요. 다시 시도해주세요.')
+    // notPicked가 실제 후보 목록에 없는 단지를 언급하면 숨김 (할루시네이션 방지)
+    if(rec.notPicked && !candidateApts.some(a => rec.notPicked.includes(a.name))) {
+      rec.notPicked = null
+    }
     const aptStr = encodeURIComponent(JSON.stringify(recApt))
     const timingColor = rec.timing?.includes('적기') ? 'var(--up)' : rec.timing?.includes('6개월') ? 'var(--gold)' : 'var(--down)'
     const recAnalysis = aptAnalysis.find(a=>a.name===rec.name) || aptAnalysis[0]
