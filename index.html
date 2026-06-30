@@ -1898,6 +1898,7 @@ ${candidates.map((a,i)=>`${i+1}. ${a.name} | 최근 전세가 ${(a.deposit/10000
     const rec = JSON.parse(jsonMatch[0])
 
     const recApt = candidates.find(a=>a.name===rec.name)
+    console.log('[debug] rec.name:', rec.name, '| recApt.name:', recApt?.name, '| match count:', candidates.filter(a=>a.name===rec.name).length)
     if(!recApt) throw new Error('AI가 유효하지 않은 단지를 추천했어요. 다시 시도해주세요.')
     const recAptStr = recApt ? encodeURIComponent(JSON.stringify({
       ...recApt, avgPrice: recApt.deposit, price: recApt.deposit, _isRent: true
