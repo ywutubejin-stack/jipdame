@@ -1800,11 +1800,17 @@ ${candidates.map((a,i)=>`${i+1}. ${a.name} | 최근 전세가 ${(a.deposit/10000
     if(!jsonMatch) throw new Error('AI 응답 파싱 실패. 다시 시도해주세요.')
     const rec = JSON.parse(jsonMatch[0])
 
+    const recApt = candidates.find(a=>a.name===rec.name) || candidates[0]
+    const recAptStr = recApt ? encodeURIComponent(JSON.stringify({
+      ...recApt, avgPrice: recApt.deposit, price: recApt.deposit, _isRent: true
+    })) : ''
+
     result.innerHTML = `
       <div style="text-align:center;margin-bottom:16px">
         <div style="font-size:11px;color:#60a5fa;font-weight:600;letter-spacing:1px;margin-bottom:6px">🔑 AI 최적 전세 추천 단지</div>
         <div style="font-size:22px;font-weight:700;font-family:var(--serif)">${rec.name}</div>
-        <div style="font-size:13px;color:var(--muted);margin-top:4px">${rec.location} · 전세 ${rec.deposit}</div>
+        <div style="font-size:13px;color:var(--muted);margin-top:4px">${rec.location} · 전세 ${recApt ? fmt(recApt.deposit) : rec.deposit}</div>
+        ${recAptStr ? `<button onclick="openSheet(JSON.parse(decodeURIComponent('${recAptStr}')))" style="margin-top:10px;padding:8px 20px;border-radius:10px;border:1px solid #60a5fa;background:rgba(96,165,250,.1);color:#60a5fa;font-size:12px;font-weight:600;cursor:pointer">단지 상세 보기 →</button>` : ''}
       </div>
       <div style="background:rgba(96,165,250,.08);border-radius:12px;padding:12px;margin-bottom:12px;border:1px solid rgba(96,165,250,.2)">
         <div style="font-size:11px;font-weight:600;color:#60a5fa;margin-bottom:4px">🛡️ 역전세 안전성</div>
@@ -3474,7 +3480,15 @@ async function renderRentMapView() {
   function next() {
     if(idx >= Math.min(data.length, 15)) return
     const apt = data[idx++]
-    const region = SGG_NAMES[apt.sggCd] || regions[0]
+    const region = (() => {
+      if(apt.sigungu) return apt.sigungu
+      // MAP_SGG에서 sggCd로 역조회
+      for(const [sido, opts] of Object.entries(MAP_SGG)) {
+        const found = opts.find(([,v]) => v === apt.sggCd)
+        if(found) return sido + ' ' + found[0]
+      }
+      return regions[0]
+    })()
     const cacheKey = apt.sggCd + '_' + apt.name
     if(window._geoCache[cacheKey]) {
       const loc = window._geoCache[cacheKey]
