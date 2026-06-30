@@ -1565,6 +1565,7 @@ function runAiAnalysis(apt) {
   const count    = apt.count || 0
   const jsr      = apt.jeonseRatio || 0
   const sg       = apt.sigungu || apt.dong || ''
+  const trades   = apt.trades || []
 
   // calcAptScore와 동일한 점수 사용
   const score = calcAptScore(apt)
