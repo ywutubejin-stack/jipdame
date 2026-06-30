@@ -437,6 +437,7 @@ body{background:#07090f;}
       <button class="sel-chip" data-r="대구">대구</button>
       <button class="sel-chip" data-r="대전">대전</button>
       <button class="sel-chip" data-r="세종">세종</button>
+      <button class="sel-chip" data-r="강원">강원</button>
     </div>
   </div>
 
@@ -572,6 +573,9 @@ body{background:#07090f;}
       <option value="대구">대구</option>
       <option value="광주">광주</option>
       <option value="대전">대전</option>
+      <option value="울산">울산</option>
+      <option value="세종">세종</option>
+      <option value="강원">강원</option>
     </select>
     <select id="filterSigungu" style="background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:6px 10px;font-size:11px;cursor:pointer;flex-shrink:0">
       <option value="">전체 구</option>
@@ -590,6 +594,12 @@ body{background:#07090f;}
       <option value="20">20억 이하</option>
       <option value="30">30억 이하</option>
       <option value="50">50억 이하</option>
+    </select>
+    <select id="filterMinCount" onchange="onFilterChange()" style="background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:6px 10px;font-size:11px;cursor:pointer;flex-shrink:0">
+      <option value="0">단지 규모 무관</option>
+      <option value="3">소규모 제외(3건↑)</option>
+      <option value="5" selected>중소형 이상(5건↑)</option>
+      <option value="10">대단지(10건↑)</option>
     </select>
     <select id="sortBy" onchange="onFilterChange()"  style="background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:6px 10px;font-size:11px;cursor:pointer;flex-shrink:0">
       <option value="score_desc">점수 높은순</option>
@@ -1029,6 +1039,7 @@ const REGION_CODES = {
   '울산':'31110,31140,31170,31200',
   '세종':'36110',
   '광주':'29110,29140,29155,29170,29200',
+  '강원':'42110,42130,42150,42170,42190,42210,42230',
 }
 /* ── 상태 ── */
 // localStorage에서 내 조건 복원
@@ -1826,15 +1837,17 @@ async function runAiRentRecommend() {
     const rentMap = {}
     results.forEach(r => { if(r.ok && r.data) Object.assign(rentMap, r.data) })
 
-    // 예산 내 단지 수집
+    // 예산 내 단지 수집 (sggCd_name 형태의 키만 사용 — name만 있는 중복키 제외)
     const allRentApts = Object.entries(rentMap)
+      .filter(([k]) => /^\d{5}_/.test(k)) // sggCd(5자리숫자)_name 형태만
       .map(([k, v]) => {
         const deposit = v.latestDeposit || v.avgDeposit || 0
         if(!deposit) return null
         const parts = k.split('_')
-        const name = parts.length > 1 ? parts.slice(1).join('_') : k
+        const sggCd = parts[0]
+        const name = parts.slice(1).join('_')
         if(name.length < 2) return null
-        return { name, sggCd: parts[0], deposit, byArea: v.byArea||{}, trades: v.trades||[] }
+        return { name, sggCd, deposit, byArea: v.byArea||{}, trades: v.trades||[] }
       }).filter(Boolean)
 
     let candidates = allRentApts
@@ -2108,6 +2121,7 @@ async function runAiRecommend() {
       allDataForBudget = results2.flatMap(r => r.ok ? (r.data||[]) : [])
     }
 
+    candidateApts = candidateApts.filter(a => (a.count||0) >= 3) // 거래 너무 적은 소규모 단지 제외
     candidateApts = candidateApts.sort((a,b) => (b._score||0)-(a._score||0)).slice(0, 20)
     if(candidateApts.length < 3) {
       const sizeFiltered = sizes.length && !sizes.includes('all')
@@ -2669,6 +2683,8 @@ function getFilteredSorted() {
   }
   if(sizeF && sizeRanges[sizeF]) { const [mn,mx]=sizeRanges[sizeF]; list=list.filter(a=>(a.area||0)>=mn&&(a.area||0)<mx) }
   if(budgetF > 0) list = list.filter(a => (a.avgPrice||0) <= budgetF)
+  const minCount = parseInt($('filterMinCount')?.value || '0')
+  if(minCount > 0) list = list.filter(a => (a.count||0) >= minCount)
   if(jsr)     list = list.filter(a => a.jeonseRatio >= jsr)
   if($('filterCanBuy')?.dataset.active === '1') list = list.filter(a => a._canBuy)
 
@@ -2799,13 +2815,13 @@ async function goToRentRec() {
 
     // 단지별 최신 전세가 + 예산 필터
     const rentApts = Object.entries(rentMap)
-      .filter(([k]) => !k.includes('_') || k.split('_')[0].length === 5) // sggCd_name 형태만
+      .filter(([k]) => /^\d{5}_/.test(k)) // sggCd_name 형태만
       .map(([k, v]) => {
         const deposit = v.latestDeposit || v.avgDeposit || 0
         if(!deposit || deposit > budget * 1.1) return null
         const parts = k.split('_')
         return {
-          name: parts.slice(1).join('_') || k,
+          name: parts.slice(1).join('_'),
           sggCd: parts[0],
           avgDeposit: deposit,
           jeonseRatio: 0,
@@ -2866,7 +2882,7 @@ async function goToRec() {
 
   // 시도→구 필터 초기화
   onFilterSidoChange()
-  ;['filterSigungu','filterSize','filterBudget','sortBy'].forEach(id => {
+  ;['filterSigungu','filterSize','filterBudget','filterMinCount','sortBy'].forEach(id => {
     const el = $(id)
     if(el && !el._bound) { el.addEventListener('change', onFilterChange); el._bound=true }
   })
@@ -3697,6 +3713,7 @@ const MAP_SGG = {
   '대전': [['전체','sido'],['서구','30170'],['유성구','30200'],['중구','30140'],['동구','30110'],['대덕구','30230']],
   '울산': [['전체','sido'],['남구','31140'],['중구','31110'],['동구','31170'],['북구','31200'],['울주군','31710']],
   '세종': [['전체','sido']],
+  '강원': [['전체','sido'],['춘천시','42110'],['원주시','42130'],['강릉시','42150'],['동해시','42170'],['속초시','42210'],['삼척시','42230']],
 }
 function updateMapSgg() {
   const sido = $('mapSido')?.value || '서울'
@@ -3729,11 +3746,12 @@ async function renderRentMapView() {
   results.forEach(r => { if(r.ok && r.data) Object.assign(rentMap, r.data) })
 
   const data = Object.entries(rentMap)
+    .filter(([k]) => /^\d{5}_/.test(k))
     .map(([k, v]) => {
       const deposit = v.latestDeposit || v.avgDeposit || 0
       if(!deposit || deposit > budget * 1.1) return null
       const parts = k.split('_')
-      const name = parts.length > 1 ? parts.slice(1).join('_') : k
+      const name = parts.slice(1).join('_')
       if(name.length < 2) return null
       return { name, sggCd: parts[0], deposit, trades: v.trades||[] }
     }).filter(Boolean)
@@ -3843,6 +3861,8 @@ async function _doRenderMapView() {
   })
   if(sizeFilter && sizeRangesMap[sizeFilter]) { const [mn,mx]=sizeRangesMap[sizeFilter]; data=data.filter(a=>(a.area||0)>=mn&&(a.area||0)<mx) }
   if(budgetMax > 0) data = data.filter(a => (a.avgPrice||0) <= budgetMax)
+  const minCount = parseInt($('filterMinCount')?.value || '0')
+  if(minCount > 0) data = data.filter(a => (a.count||0) >= minCount)
   if(sortVal==='score_desc') data.sort((a,b)=>b._score-a._score)
   else if(sortVal==='price_asc') data.sort((a,b)=>(a.avgPrice||0)-(b.avgPrice||0))
   else if(sortVal==='price_desc') data.sort((a,b)=>(b.avgPrice||0)-(a.avgPrice||0))
@@ -3932,6 +3952,8 @@ function renderMapViewFromCache() {
   if(sgg) { const codes=sgg.split(','); data=data.filter(a=>codes.includes(a.sggCd)) }
   if(sizeFilter&&sizeRangesMap[sizeFilter]) { const [mn,mx]=sizeRangesMap[sizeFilter]; data=data.filter(a=>(a.area||0)>=mn&&(a.area||0)<mx) }
   if(budgetMax>0) data=data.filter(a=>(a.avgPrice||0)<=budgetMax)
+  const minCount = parseInt($('filterMinCount')?.value || '0')
+  if(minCount > 0) data = data.filter(a => (a.count||0) >= minCount)
   if($('filterCanBuy')?.dataset.active === '1') data=data.filter(a=>a._canBuy)
   if(sortVal==='score_desc') data.sort((a,b)=>b._score-a._score)
   else if(sortVal==='price_asc') data.sort((a,b)=>(a.avgPrice||0)-(b.avgPrice||0))
