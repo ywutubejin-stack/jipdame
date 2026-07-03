@@ -1927,11 +1927,12 @@ async function runAiRentRecommend() {
           return regions[0]
         })()
         try {
-          const geoRes = await fetch(`${PROXY}?type=geo&addr=${encodeURIComponent(region + ' ' + apt.name)}`, {headers:HDR}).then(r=>r.json()).catch(()=>null)
+          const simpleName = apt.name.replace(/\(.*?\)/g,'').replace(/[\d]+동[,\s]*/g,'').replace(/[,，]/g,' ').trim()
+          const geoRes = await fetch(`${PROXY}?type=geo&addr=${encodeURIComponent(region + ' ' + simpleName)}`, {headers:HDR}).then(r=>r.json()).catch(()=>null)
           if(geoRes?.x && geoRes?.y) {
             if(state.workplace) {
               const timeRes = await fetch(`${PROXY}?type=commute&ox=${geoRes.x}&oy=${geoRes.y}&dest=${encodeURIComponent(state.workplace)}`, {headers:HDR}).then(r=>r.json()).catch(()=>null)
-              if(timeRes?.minutes) commuteMap[apt.name] = timeRes.minutes
+              if(timeRes?.minutes) commuteMap[apt.name] = timeRes.estimated ? `약 ${timeRes.minutes}분(추정)` : `${timeRes.minutes}분`
             }
             const [schoolsRes, academyRes] = await Promise.all([
               fetch(`${PROXY}?type=schools&lat=${geoRes.y}&lng=${geoRes.x}`, {headers:HDR}).then(r=>r.json()).catch(()=>({ok:false})),
@@ -2248,7 +2249,7 @@ async function runAiRecommend() {
             // 통근 시간
             if(state.workplace) {
               const timeRes = await fetch(`${PROXY}?type=commute&ox=${geoRes.x}&oy=${geoRes.y}&dest=${encodeURIComponent(state.workplace)}`, {headers:HDR}).then(r=>r.json()).catch(()=>null)
-              if(timeRes?.minutes) commuteMap[apt.name] = timeRes.minutes
+              if(timeRes?.minutes) commuteMap[apt.name] = timeRes.estimated ? `약 ${timeRes.minutes}분(추정)` : `${timeRes.minutes}분`
             }
             // 학교 + 학원가 밀집도
             const [schoolsRes, academyRes] = await Promise.all([
