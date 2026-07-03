@@ -538,6 +538,9 @@ body{background:#07090f;}
 
   <!-- AI 추천 결과 -->
   <div id="aiRecommendResult" style="display:none;margin-top:12px;background:var(--card);border-radius:16px;padding:20px;border:1px solid var(--border2)"></div>
+
+  <!-- 최근 추천 내역 -->
+  <div id="aiRecentHistory" style="display:none;margin-top:8px"></div>
 </div>
 </div>
 
@@ -1817,6 +1820,45 @@ function initExtraChips() {
   if(state.holdYears!=null) { document.querySelectorAll('[data-hold]').forEach(e=>{ e.classList.toggle('on', parseInt(e.dataset.hold)===state.holdYears) }) }
 }
 
+function saveAiHistory(item) {
+  try {
+    const history = JSON.parse(localStorage.getItem('jipdame_ai_history') || '[]')
+    // 같은 단지가 이미 있으면 제거 후 맨 앞에 추가
+    const filtered = history.filter(h => h.name !== item.name)
+    filtered.unshift(item)
+    // 최대 10개 유지
+    localStorage.setItem('jipdame_ai_history', JSON.stringify(filtered.slice(0, 10)))
+  } catch(e) {}
+}
+
+function renderAiHistory() {
+  const container = $('aiRecentHistory')
+  if(!container) return
+  try {
+    const history = JSON.parse(localStorage.getItem('jipdame_ai_history') || '[]')
+    if(!history.length) { container.style.display = 'none'; return }
+    container.style.display = 'block'
+    container.innerHTML = `
+      <div style="font-size:11px;font-weight:600;color:var(--muted);margin-bottom:8px;margin-top:4px">🕐 최근 추천 내역</div>
+      ${history.slice(0, 3).map((h, i) => `
+        <div onclick="${h.apt ? `openSheet(${JSON.stringify(h.apt).replace(/"/g,'&quot;')})` : ''}" style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;background:var(--bg3);border-radius:10px;margin-bottom:6px;cursor:pointer;border:1px solid var(--border)">
+          <div>
+            <div style="display:flex;align-items:center;gap:6px;margin-bottom:2px">
+              <span style="font-size:10px;color:${h.mode==='rent'?'#60a5fa':'var(--gold)'}">${h.mode==='rent'?'🔑 전세':'🏠 매매'}</span>
+              <span style="font-size:12px;font-weight:600">${h.name}</span>
+            </div>
+            <div style="font-size:10px;color:var(--muted)">${h.location||''} · ${h.date}</div>
+          </div>
+          <div style="text-align:right">
+            <div style="font-size:13px;font-weight:700;color:${h.mode==='rent'?'#60a5fa':'var(--gold)'}">${h.price}</div>
+            ${h.score ? `<div style="font-size:10px;color:var(--muted)">${h.score}점</div>` : ''}
+          </div>
+        </div>`).join('')}
+      ${history.length > 0 ? `<button onclick="localStorage.removeItem('jipdame_ai_history');renderAiHistory()" style="width:100%;padding:6px;border-radius:8px;border:1px solid var(--border);background:none;color:var(--muted);font-size:10px;cursor:pointer;margin-top:2px">내역 지우기</button>` : ''}
+    `
+  } catch(e) { container.style.display = 'none' }
+}
+
 async function runAiRentRecommend() {
   const btn = $('aiRecommendBtn')
   const result = $('aiRecommendResult')
@@ -2007,6 +2049,18 @@ ${candidates.map((a,i)=>{
     btn.disabled = false
     btn.innerHTML = '<span style="font-size:22px">🔑</span> AI가 최적 전세 단지 추천해줘'
 
+    // 추천 내역 저장
+    saveAiHistory({
+      name: rec.name,
+      location: recApt?.sigungu || rec.location,
+      price: recApt?.deposit ? fmt(recApt.deposit) : rec.deposit,
+      score: null,
+      mode: 'rent',
+      date: new Date().toLocaleDateString('ko-KR', {month:'numeric', day:'numeric'}),
+      apt: recApt,
+    })
+    renderAiHistory()
+
     // 지도 렌더링
     if(recApt && window.kakao?.maps) {
       const mapContainer = $('aiRecommendMap')
@@ -2031,7 +2085,8 @@ ${candidates.map((a,i)=>{
           const content = `<div style="background:#60a5fa;color:#111;padding:6px 10px;border-radius:10px;font-size:11px;font-weight:700;white-space:nowrap;box-shadow:0 2px 8px rgba(0,0,0,.4)">${rec.name}</div>`
           new kakao.maps.CustomOverlay({position:pos, content, yAnchor:1.4}).setMap(map)
         }
-        ps.keywordSearch(`${preciseRegion} ${rec.name}`, (r,s) => {
+        const simpleName = n => n.replace(/[\d]+동[,\s]*/g,'').replace(/\s+/g,' ').trim() || n
+        ps.keywordSearch(`${preciseRegion} ${simpleName(rec.name)}`, (r,s) => {
           if(s === kakao.maps.services.Status.OK && r.length) {
             // 정확히 이름이 일치하는 결과 우선 선택
             const exact = r.find(item => item.place_name.replace(/\s/g,'') === rec.name.replace(/\s/g,''))
@@ -2272,13 +2327,17 @@ ${aptAnalysis.map((a,i) => `${i+1}. ${a.name} (${a.sigungu})
 ## 분석 요청
 위 데이터를 바탕으로:
 1. 최적 단지 1개 선정 (반드시 평균가 ${(power/100000000).toFixed(1)}억 이하)
-2. 추천 이유 3가지 — 반드시 위 수치를 인용할 것 (예: "전세가율 68%로 갭 3.2억, 실투자금 부담 낮음")
+2. 추천 이유 3가지 — 각 이유마다 반드시 위 수치를 구체적으로 인용할 것
+   - 통근 시간이 측정된 경우: "종각역까지 대중교통 XX분으로 허용 시간(YY분) 이내" 처럼 정확한 분 수 명시
+   - 가격: "평균 매매가 X.X억으로 구매력 Y.Y억 대비 Z억 여유" 처럼 구체적 수치
+   - 전세가율/갭: "전세가율 X%, 갭 Y억" 처럼 수치 인용
+   - "우수한 접근성", "안정적인 입지" 같은 모호한 표현 금지
 3. 매수 타이밍: 금리/전세가율/거래량 데이터 근거로 판단
 4. 단지 상세: 실거주 관점 설명 (교통/생활인프라/단지특징. 후보 데이터에 학교/학원가 정보가 있으면 그 사실만 인용 가능. 데이터 없으면 학군 언급 금지)
 5. 핵심 리스크 1가지
 
 반드시 JSON만 반환 (마크다운 없이):
-{"name":"단지명","location":"위치","price":"X.X억","reasons":["수치 인용한 이유1","수치 인용한 이유2","수치 인용한 이유3"],"timing":"지금 매수 적기 / 6개월 후 권장 / 1년 이상 관망","timingReason":"금리/전세가율/거래량 근거 포함 2-3문장","detail":"실거주 관점 상세 설명 3-4문장","caution":"핵심 리스크"}`
+{"name":"단지명","location":"위치","price":"X.X억","reasons":["구체적 수치 포함 이유1","구체적 수치 포함 이유2","구체적 수치 포함 이유3"],"timing":"지금 매수 적기 / 6개월 후 권장 / 1년 이상 관망","timingReason":"금리/전세가율/거래량 근거 포함 2-3문장","detail":"실거주 관점 상세 설명 3-4문장","caution":"핵심 리스크"}`
 
     const callAi = async () => {
       const res = await fetch(`${PROXY}?type=ai`, {
@@ -2368,6 +2427,18 @@ ${aptAnalysis.map((a,i) => `${i+1}. ${a.name} (${a.sigungu})
     btn.disabled = false
     btn.innerHTML = '<span style="font-size:22px">✨</span> AI가 최적의 단지 1개 추천해줘'
 
+    // 추천 내역 저장
+    saveAiHistory({
+      name: rec.name,
+      location: recApt?.sigungu || rec.location,
+      price: recApt?.avgPrice ? fmt(recApt.avgPrice) : rec.price,
+      score: recAnalysis?.score || 0,
+      mode: 'buy',
+      date: new Date().toLocaleDateString('ko-KR', {month:'numeric', day:'numeric'}),
+      apt: recApt,
+    })
+    renderAiHistory()
+
     // 지도 렌더링
     if(recApt && window.kakao?.maps) {
       const mapContainer = $('aiRecommendMap')
@@ -2394,10 +2465,10 @@ ${aptAnalysis.map((a,i) => `${i+1}. ${a.name} (${a.sigungu})
         if(jibun) {
           geocoder.addressSearch(`${region} ${dong} ${jibun}`, (r,s) => {
             if(s === kakao.maps.services.Status.OK) onFound(r[0].y, r[0].x)
-            else ps.keywordSearch(`${region} ${rec.name}`, (r2,s2) => { if(s2===kakao.maps.services.Status.OK && r2.length) { const b=pickBest(r2); onFound(b.y, b.x) } })
+            else ps.keywordSearch(`${region} ${simpleName(rec.name)}`, (r2,s2) => { if(s2===kakao.maps.services.Status.OK && r2.length) { const b=pickBest(r2); onFound(b.y, b.x) } })
           })
         } else {
-          ps.keywordSearch(`${region} ${dong} ${rec.name}`, (r,s) => { if(s===kakao.maps.services.Status.OK && r.length) { const b=pickBest(r); onFound(b.y, b.x) } })
+          ps.keywordSearch(`${region} ${dong} ${simpleName(rec.name)}`, (r,s) => { if(s===kakao.maps.services.Status.OK && r.length) { const b=pickBest(r); onFound(b.y, b.x) } })
         }
       }
     }
@@ -4176,6 +4247,8 @@ function initApp() {
   initRentSlider()
   // 저장된 모드 복원
   if(state.appMode) setMode(state.appMode)
+  // 최근 추천 내역 초기 렌더
+  renderAiHistory()
   // 슬라이더 ↔ 입력칸 동기화
   const sl = { asset:$('sl-asset'), income:$('sl-income'), rate:$('sl-rate') }
   const inp = { asset:$('in-asset'), income:$('in-income'), rate:$('in-rate') }
