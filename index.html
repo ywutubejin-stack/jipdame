@@ -1968,7 +1968,7 @@ async function runAiRentRecommend() {
 - 전세 보증금 예산: ${(budget/100000000).toFixed(1)}억원 이하
 - 가구 유형: ${householdMap[state.household]||'미입력'}
 - 직장 위치: ${state.workplace||'미입력'}
-- 통근 허용: ${state.commuteTime||60}분 이내
+- 통근 허용: ${state.commuteTime >= 999 ? '제한 없음' : (state.commuteTime||60)+'분 이내'}
 - 계약 기간: ${contractMap[String(state.contractYears||2)]||'2년'}
 - 선호 평형: ${(state.sizes||[]).join(', ')||'무관'}
 - 관심 지역: ${regions.join(', ')}
@@ -2316,7 +2316,7 @@ async function runAiRecommend() {
 ## 생활 조건
 - 가구 유형: ${householdMap[state.household] || '미입력'}
 - 직장 위치: ${state.workplace || '미입력'}
-- 허용 통근 시간: ${state.commuteTime || 60}분 이내
+- 허용 통근 시간: ${state.commuteTime >= 999 ? '제한 없음' : (state.commuteTime||60)+'분 이내'}
 - 선호 평형: ${sizes.map(s=>sizeMap[s]||s).join(', ') || '무관'}
 - 예상 보유 기간: ${holdMap[String(state.holdYears)] || '미입력'}
 
