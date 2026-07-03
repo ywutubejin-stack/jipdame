@@ -1979,14 +1979,16 @@ ${candidates.map((a,i)=>{
   return `${i+1}. ${a.name} | 최근 전세가 ${(a.deposit/100000000).toFixed(1)}억${commute?` | 통근 ${commute}분`:''}${edu?`\n   - 초등학교: ${edu.nearestElem} | 중학교: ${edu.nearestMiddle} | 학원가: ${edu.academyLevel}(${edu.academyCount}개)`:''}`
 }).join('\n')}
 
-## 전세 추천 기준
+## 전세 추천 기준 및 이유 작성 방법
 1. 역전세 위험 낮은 단지 (매매가 대비 전세가율 60~75% 구간 선호)
-2. 직장 접근성 (통근 시간 데이터가 있으면 우선 고려)
-3. 가구 유형에 맞는 생활환경 (학군 데이터가 있는 단지는 그 사실 인용 가능, 없으면 언급 금지)
-4. 계약 만료 후 재계약 수요가 충분한 단지
+2. 직장 접근성: 통근 시간이 측정된 경우 "종각역까지 대중교통 XX분으로 허용 시간(YY분) 이내" 처럼 정확한 수치 명시 필수. 미측정이면 언급 금지
+3. 가격: "전세 보증금 X.X억으로 예산 Y.Y억 대비 Z억 여유" 처럼 구체적 수치
+4. 가구 유형에 맞는 생활환경 (학군 데이터가 있는 단지는 그 사실 인용 가능, 없으면 언급 금지)
+5. 계약 만료 후 재계약 수요가 충분한 단지
+- "우수한 접근성", "합리적 가격 형성" 같은 모호한 표현 금지. 반드시 수치로 표현할 것
 
 반드시 JSON만 반환 (마크다운 없이):
-{"name":"단지명","location":"위치","deposit":"보증금","reasons":["이유1","이유2","이유3"],"safetyNote":"역전세 안전성 평가 1문장","detail":"단지 특징 2-3문장 (교통/단지규모/생활편의시설 + 학교/학원 데이터 있으면 인용, 없으면 학군 언급 금지)","caution":"주의사항"}`
+{"name":"단지명","location":"위치","deposit":"보증금","reasons":["구체적 수치 포함 이유1","구체적 수치 포함 이유2","구체적 수치 포함 이유3"],"safetyNote":"역전세 안전성 평가 1문장","detail":"단지 특징 2-3문장 (교통/단지규모/생활편의시설 + 학교/학원 데이터 있으면 인용, 없으면 학군 언급 금지)","caution":"주의사항"}`
 
     const callAi = async () => {
       const res = await fetch(`${PROXY}?type=ai`, {
@@ -2085,7 +2087,7 @@ ${candidates.map((a,i)=>{
           const content = `<div style="background:#60a5fa;color:#111;padding:6px 10px;border-radius:10px;font-size:11px;font-weight:700;white-space:nowrap;box-shadow:0 2px 8px rgba(0,0,0,.4)">${rec.name}</div>`
           new kakao.maps.CustomOverlay({position:pos, content, yAnchor:1.4}).setMap(map)
         }
-        const simpleName = n => n.replace(/[\d]+동[,\s]*/g,'').replace(/\s+/g,' ').trim() || n
+        const simpleName = n => n.replace(/\(.*?\)/g,'').replace(/[\d]+동[,\s]*/g,'').replace(/[,，]/g,' ').replace(/\s+/g,' ').trim() || n
         ps.keywordSearch(`${preciseRegion} ${simpleName(rec.name)}`, (r,s) => {
           if(s === kakao.maps.services.Status.OK && r.length) {
             // 정확히 이름이 일치하는 결과 우선 선택
@@ -2462,6 +2464,7 @@ ${aptAnalysis.map((a,i) => `${i+1}. ${a.name} (${a.sigungu})
           const exact = r.find(item => item.place_name.replace(/\s/g,'') === rec.name.replace(/\s/g,''))
           return exact || r[0]
         }
+        const simpleName = n => n.replace(/\(.*?\)/g,'').replace(/[\d]+동[,\s]*/g,'').replace(/[,，]/g,' ').replace(/\s+/g,' ').trim() || n
         if(jibun) {
           geocoder.addressSearch(`${region} ${dong} ${jibun}`, (r,s) => {
             if(s === kakao.maps.services.Status.OK) onFound(r[0].y, r[0].x)
