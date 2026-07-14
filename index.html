@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏠</text></svg>">
 <title>집담 — 부동산 매수 결정 도우미</title>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#0a0c12">
@@ -1704,6 +1705,7 @@ function closeSheet() {
   $('detailSheet')?.classList.remove('open')
   if($('dtJsrTable')) $('dtJsrTable').style.display = 'none'
   if($('dtEduSection')) $('dtEduSection').style.display = 'none'
+  if($('aiEduSection')) $('aiEduSection').innerHTML = ''
   if(history.state?.sheet) history.back()
 }
 
@@ -1979,15 +1981,27 @@ async function runAiRentRecommend() {
         })()
         try {
           const simpleName = apt.name.replace(/\(.*?\)/g,'').replace(/[\d]+동[,\s]*/g,'').replace(/[,，]/g,' ').trim()
+          let lat = null, lng = null
+          // 1차: geo API (지번 주소 기반)
           const geoRes = await fetch(`${PROXY}?type=geo&addr=${encodeURIComponent(region + ' ' + simpleName)}`, {headers:HDR}).then(r=>r.json()).catch(()=>null)
-          if(geoRes?.x && geoRes?.y) {
+          if(geoRes?.x && geoRes?.y) { lng = parseFloat(geoRes.x); lat = parseFloat(geoRes.y) }
+          // 2차: 카카오 Places 키워드 검색 fallback
+          if(!lat && window.kakao?.maps) {
+            await new Promise(resolve => {
+              new kakao.maps.services.Places().keywordSearch(`${region} ${simpleName}`, (r,s) => {
+                if(s===kakao.maps.services.Status.OK && r[0]) { lat=parseFloat(r[0].y); lng=parseFloat(r[0].x) }
+                resolve()
+              })
+            })
+          }
+          if(lat && lng) {
             if(state.workplace) {
-              const timeRes = await fetch(`${PROXY}?type=commute&ox=${geoRes.x}&oy=${geoRes.y}&dest=${encodeURIComponent(state.workplace)}`, {headers:HDR}).then(r=>r.json()).catch(()=>null)
+              const timeRes = await fetch(`${PROXY}?type=commute&ox=${lng}&oy=${lat}&dest=${encodeURIComponent(state.workplace)}`, {headers:HDR}).then(r=>r.json()).catch(()=>null)
               if(timeRes?.minutes) commuteMap[apt.name] = timeRes.estimated ? `약 ${timeRes.minutes}분(추정)` : `${timeRes.minutes}분`
             }
             const [schoolsRes, academyRes] = await Promise.all([
-              fetch(`${PROXY}?type=schools&lat=${geoRes.y}&lng=${geoRes.x}`, {headers:HDR}).then(r=>r.json()).catch(()=>({ok:false})),
-              fetch(`${PROXY}?type=academy_density&lat=${geoRes.y}&lng=${geoRes.x}`, {headers:HDR}).then(r=>r.json()).catch(()=>({ok:false})),
+              fetch(`${PROXY}?type=schools&lat=${lat}&lng=${lng}`, {headers:HDR}).then(r=>r.json()).catch(()=>({ok:false})),
+              fetch(`${PROXY}?type=academy_density&lat=${lat}&lng=${lng}`, {headers:HDR}).then(r=>r.json()).catch(()=>({ok:false})),
             ])
             const nearestElem = schoolsRes.ok ? schoolsRes.elementary?.[0] : null
             const nearestMiddle = schoolsRes.ok ? schoolsRes.middle?.[0] : null
@@ -2032,15 +2046,17 @@ ${candidates.map((a,i)=>{
 }).join('\n')}
 
 ## 전세 추천 기준 및 이유 작성 방법
-1. 역전세 위험 낮은 단지 (매매가 대비 전세가율 60~75% 구간 선호)
-2. 직장 접근성: 통근 시간이 측정된 경우 "종각역까지 대중교통 XX분으로 허용 시간(YY분) 이내" 처럼 정확한 수치 명시 필수. 미측정이면 언급 금지
+${state.household === 'family' ? '★★★ 최우선 기준: 자녀 있는 가족이므로 초등학교가 가장 가까운 단지를 우선 선정. 학교 데이터가 있는 단지 중에서 초등학교 거리를 이유 1번에 반드시 명시.' : ''}
+${state.household === 'couple' ? '★ 신혼/부부: 향후 자녀 계획을 위해 초등학교 거리도 고려.' : ''}
+1. ${state.household === 'family' ? '초등학교 거리 (가장 중요 — 반드시 학교 데이터 있는 단지 선정)' : '역전세 위험 낮은 단지 (매매가 대비 전세가율 60~75% 구간 선호)'}
+2. 직장 접근성: 통근 시간이 측정된 경우 "${state.workplace||'직장'}까지 대중교통 XX분으로 허용 시간(YY분) 이내" 처럼 정확한 수치 명시 필수. 미측정이면 언급 금지
 3. 가격: "전세 보증금 X.X억으로 예산 Y.Y억 대비 Z억 여유" 처럼 구체적 수치
-4. 가구 유형에 맞는 생활환경 (학군/학교/학원 관련 언급 절대 금지 — 학군 정보는 별도 섹션에서 제공됨)
-5. 계약 만료 후 재계약 수요가 충분한 단지
+4. 가구 유형에 맞는 생활환경 — 후보 단지 데이터에 학교/학원 정보가 있으면 수치(학교명+거리, 학원 개수)를 근거로 언급. 데이터가 없으면 학군 언급 금지
+5. ${state.household === 'family' ? '역전세 위험 낮은 단지' : '계약 만료 후 재계약 수요가 충분한 단지'}
 - "우수한 접근성", "합리적 가격 형성" 같은 모호한 표현 금지. 반드시 수치로 표현할 것
 
 반드시 JSON만 반환 (마크다운 없이):
-{"name":"단지명","location":"위치","deposit":"보증금","reasons":["구체적 수치 포함 이유1","구체적 수치 포함 이유2","구체적 수치 포함 이유3"],"safetyNote":"역전세 안전성 평가 1문장","detail":"단지 특징 2-3문장 (교통/단지규모/생활편의시설만 — 학군/학교/학원 언급 절대 금지)","caution":"주의사항"}`
+{"name":"단지명","location":"위치","deposit":"보증금","reasons":["구체적 수치 포함 이유1","구체적 수치 포함 이유2","구체적 수치 포함 이유3"],"safetyNote":"역전세 안전성 평가 1문장","detail":"단지 특징 2-3문장 (교통/단지규모/생활편의. 학교/학원 데이터가 있으면 수치 인용 가능, 없으면 학군 언급 금지)","caution":"주의사항"}`
 
     const callAi = async () => {
       const res = await fetch(`${PROXY}?type=ai`, {
@@ -2386,13 +2402,15 @@ ${aptAnalysis.map((a,i) => `${i+1}. ${a.name} (${a.sigungu})
 ## 분석 요청
 위 데이터를 바탕으로:
 1. 최적 단지 1개 선정 (반드시 평균가 ${(power/100000000).toFixed(1)}억 이하)
+   ${state.household === 'family' ? '★ 자녀 있는 가족 최우선 기준: 초등학교가 가장 가까운 단지 우선 선정. 학교 데이터가 있는 단지 중에서 선택하고, 초등학교 거리를 이유 1번에 반드시 명시' : ''}
+   ${state.household === 'couple' ? '★ 신혼/부부 기준: 향후 자녀 계획을 위해 초등학교 거리도 고려' : ''}
 2. 추천 이유 3가지 — 각 이유마다 반드시 위 수치를 구체적으로 인용할 것
    - 통근 시간이 측정된 경우: "종각역까지 대중교통 XX분으로 허용 시간(YY분) 이내" 처럼 정확한 분 수 명시
    - 가격: "평균 매매가 X.X억으로 구매력 Y.Y억 대비 Z억 여유" 처럼 구체적 수치
    - 전세가율/갭: "전세가율 X%, 갭 Y억" 처럼 수치 인용
    - "우수한 접근성", "안정적인 입지" 같은 모호한 표현 금지
 3. 매수 타이밍: 금리/전세가율/거래량 데이터 근거로 판단
-4. 단지 상세: 실거주 관점 설명 (교통/생활인프라/단지특징만 — 학군/학교/학원 언급 절대 금지. 학군 정보는 별도 섹션에서 제공됨)
+4. 단지 상세: 실거주 관점 설명 (교통/생활인프라/단지특징. 후보 데이터에 학교/학원 수치가 있으면 근거로 인용 가능, 없으면 학군 언급 금지)
 5. 핵심 리스크 1가지
 
 반드시 JSON만 반환 (마크다운 없이):
