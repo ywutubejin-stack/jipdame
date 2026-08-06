@@ -2245,20 +2245,22 @@ async function runAiRecommend() {
       })).filter(a => a._canBuy)
     }
 
-    // 평형 필터
+    // 평형 필터 — 후보 수집 시엔 soft 적용 (최소 5개 확보 보장)
     const sizes = state.sizes||[]
     if(sizes.length && !sizes.includes('all')) {
-      candidateApts = candidateApts.filter(a => {
-        const area = a.area||0
-        return sizes.some(s => {
+      const sizeFiltered = candidateApts.filter(a => {
+        const areasList = a.areas?.length ? a.areas : [a.area||0]
+        return sizes.some(s => areasList.some(area => {
           if(s==='10') return area <= 40
           if(s==='20') return area > 40 && area <= 66
           if(s==='30') return area > 66 && area <= 100
           if(s==='40') return area > 100 && area <= 130
           if(s==='50') return area > 130
           return true
-        })
+        }))
       })
+      // 필터 결과가 5개 이상이면 적용, 아니면 필터 무시하고 프롬프트에만 전달
+      if(sizeFiltered.length >= 5) candidateApts = sizeFiltered
     }
 
     // 전체 데이터 보관 (예산 부족분 계산용)
@@ -2873,7 +2875,7 @@ function getFilteredSorted() {
     const sggCodes = sigungu.split(',')
     list = list.filter(a => sggCodes.includes(a.sggCd) || (a.sigungu||'').includes(sigungu))
   }
-  if(sizeF && sizeRanges[sizeF]) { const [mn,mx]=sizeRanges[sizeF]; list=list.filter(a=>(a.area||0)>=mn&&(a.area||0)<mx) }
+  if(sizeF && sizeRanges[sizeF]) { const [mn,mx]=sizeRanges[sizeF]; list=list.filter(a=>(a.areas||[a.area||0]).some(ar=>ar>=mn&&ar<mx)) }
   if(budgetF > 0) list = list.filter(a => (a.avgPrice||0) <= budgetF)
   const minCount = parseInt($('filterMinCount')?.value || '0')
   if(minCount > 0) list = list.filter(a => (a.count||0) >= minCount)
@@ -4051,7 +4053,7 @@ async function _doRenderMapView() {
     const canBuy = !blocked && selfNeed<=state.asset*10000
     return {...a, _score:calcAptScore(a), _canBuy:canBuy, _blocked:blocked}
   })
-  if(sizeFilter && sizeRangesMap[sizeFilter]) { const [mn,mx]=sizeRangesMap[sizeFilter]; data=data.filter(a=>(a.area||0)>=mn&&(a.area||0)<mx) }
+  if(sizeFilter && sizeRangesMap[sizeFilter]) { const [mn,mx]=sizeRangesMap[sizeFilter]; data=data.filter(a=>(a.areas||[a.area||0]).some(ar=>ar>=mn&&ar<mx)) }
   if(budgetMax > 0) data = data.filter(a => (a.avgPrice||0) <= budgetMax)
   const minCount = parseInt($('filterMinCount')?.value || '0')
   if(minCount > 0) data = data.filter(a => (a.count||0) >= minCount)
