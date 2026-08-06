@@ -2019,11 +2019,21 @@ async function runAiRentRecommend() {
       }
     }
 
+    setStatus('시장 데이터 수집 중...')
+    const marketCtx = await fetch(`${PROXY}?type=market_context`, {headers:HDR}).then(r=>r.json()).catch(()=>({ok:false,data:{}}))
+    const mkt = marketCtx.data || {}
+
     setStatus('AI 분석 중...')
     const householdMap = {single:'1인 가구', couple:'신혼/부부', dual:'맞벌이', family:'자녀 있는 가족'}
     const contractMap = {'2':'2년', '4':'4년(계약갱신)', '0':'미정'}
 
     const prompt = `당신은 한국 최고의 전세 전문가입니다. 아래 후보 목록 중에서만 최적의 전세 단지 1개를 선택해 추천해주세요.
+
+## 현재 금융/전세 시장 환경 (실제 데이터)
+${mkt.baseRate ? `- 한국은행 기준금리: ${mkt.baseRate.current}% → ${mkt.baseRate.trend} (6개월 ${mkt.baseRate.change6m > 0 ? '+' : ''}${mkt.baseRate.change6m}%p)` : ''}
+${mkt.mortgageRate ? `- 주택담보대출 금리: ${mkt.mortgageRate.current}% (${mkt.mortgageRate.trend})` : ''}
+${mkt.baseRate ? `→ 금리 ${mkt.baseRate.trend === '인하 기조' ? '인하로 전세 수요 증가 가능, 역전세 위험 주의' : '인상으로 매수 심리 약화, 전세 수요 강세 지속 가능성'}` : ''}
+
 
 절대 규칙: name 필드에는 반드시 "전세 후보 단지" 목록에 있는 단지명을 토씨 하나 틀리지 않고 그대로 복사해서 넣으세요. 목록은 ${candidates.length}개이며, 그중 하나를 선택하는 것입니다. "해당 없음", "추천 불가", "데이터 없음" 같은 답은 허용되지 않습니다. 반드시 목록 중 하나를 선택해야 합니다.
 ${(() => { try { const h = JSON.parse(localStorage.getItem('jipdame_ai_history')||'[]'); const prev = h.slice(0,3).map(x=>x.name).filter(Boolean); return prev.length ? `이전 추천 단지(${prev.join(', ')})와 다른 단지를 선정하세요. 다양한 선택지를 제공하는 것이 중요합니다.` : '' } catch(e){return ''} })()}
@@ -2388,8 +2398,18 @@ async function runAiRecommend() {
     })
 
     // ─ 4. AI 프롬프트 (데이터 기반) ─
+    setStatus('시장 데이터 수집 중...')
+    const marketCtx = await fetch(`${PROXY}?type=market_context`, {headers:HDR}).then(r=>r.json()).catch(()=>({ok:false,data:{}}))
+    const mkt = marketCtx.data || {}
+
     setStatus('AI 분석 중...')
     const prompt = `당신은 한국 최고의 부동산 투자 전문가입니다. 아래 실거래 데이터와 사용자 조건을 정밀 분석해 최적의 아파트 1개를 추천하세요.
+
+## 현재 거시경제/금융 환경 (한국은행 실제 데이터)
+${mkt.baseRate ? `- 한국은행 기준금리: ${mkt.baseRate.current}% (${mkt.baseRate.time} 기준), 6개월 전 대비 ${mkt.baseRate.change6m > 0 ? '+' : ''}${mkt.baseRate.change6m}%p → ${mkt.baseRate.trend}` : '- 기준금리: 데이터 조회 중'}
+${mkt.mortgageRate ? `- 주택담보대출 평균금리: ${mkt.mortgageRate.current}% (${mkt.mortgageRate.trend}, 6개월 전 대비 ${mkt.mortgageRate.change6m > 0 ? '+' : ''}${mkt.mortgageRate.change6m}%p)` : ''}
+→ 이 금리 환경이 매수 타이밍 판단에 반드시 반영되어야 합니다.
+
 
 절대 규칙: name 필드에는 반드시 아래 "후보 단지 상세 분석" 목록에 있는 단지명을 토씨 하나 틀리지 않고 그대로 복사해서 넣으세요. 목록은 ${aptAnalysis.length}개이며, 그중 하나를 선택하는 것입니다. "해당 없음" 등은 허용되지 않습니다.
 ${(() => { try { const h = JSON.parse(localStorage.getItem('jipdame_ai_history')||'[]'); const prev = h.slice(0,3).map(x=>x.name).filter(Boolean); return prev.length ? `이전 추천 단지(${prev.join(', ')})와 다른 단지를 선정하세요.` : '' } catch(e){return ''} })()}
