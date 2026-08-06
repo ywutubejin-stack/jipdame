@@ -2033,7 +2033,7 @@ async function runAiRentRecommend() {
 ## 현재 부동산/금융 시장 환경 (실제 데이터)
 ${mkt.baseRate ? `- 한국은행 기준금리: ${mkt.baseRate.current}% → ${mkt.baseRate.trend} (6개월 ${mkt.baseRate.change6m > 0 ? '+' : ''}${mkt.baseRate.change6m}%p)` : ''}
 ${mkt.mortgageRate ? `- 주택담보대출 금리: ${mkt.mortgageRate.current}% (${mkt.mortgageRate.trend})` : ''}
-${mkt.priceIndex ? `- 전국 아파트 매매가격지수: ${mkt.priceIndex.trend} (전월 대비 ${mkt.priceIndex.changeRate > 0 ? '+' : ''}${mkt.priceIndex.changeRate}%)` : ''}
+${mkt.priceIndex ? `- 전국 아파트 매매가격지수: ${mkt.priceIndex.current} (${mkt.priceIndex.time}), ${mkt.priceIndex.changeRate !== null ? '전월 대비 '+(mkt.priceIndex.changeRate > 0 ? '+' : '')+mkt.priceIndex.changeRate+'%' : ''} → ${mkt.priceIndex.trend}` : ''}
 ${mkt.supplyDemand ? `- 매매수급지수: ${mkt.supplyDemand.index} → ${mkt.supplyDemand.interpretation}` : ''}
 ${mkt.baseRate ? `→ 금리 ${mkt.baseRate.trend === '인하 기조' ? '인하로 매수 전환 수요 일부 발생 가능, 전세 수요 변화 주의' : '인상/동결로 전세 수요 강세 지속 가능성'}` : ''}
 
@@ -2059,7 +2059,7 @@ ${(() => { try { const h = JSON.parse(localStorage.getItem('jipdame_ai_history')
 ${candidates.map((a,i)=>{
   const edu = eduMap[a.name]
   const commute = commuteMap[a.name]
-  return `${i+1}. ${a.name} | 최근 전세가 ${(a.deposit/100000000).toFixed(1)}억${commute?` | 통근 ${commute}분`:''}${edu?`\n   - 초등학교: ${edu.nearestElem} | 중학교: ${edu.nearestMiddle} | 학원가: ${edu.academyLevel}(${edu.academyCount}개)`:''}`
+  return `${i+1}. ${a.name} | 최근 전세가 ${(a.deposit/100000000).toFixed(1)}억${commute?` | 통근 ${commute}`:''}${edu?`\n   - 초등학교: ${edu.nearestElem} | 중학교: ${edu.nearestMiddle} | 학원가: ${edu.academyLevel}(${edu.academyCount}개)`:''}`
 }).join('\n')}
 
 ## 전세 추천 기준 및 이유 작성 방법
@@ -2396,7 +2396,7 @@ async function runAiRecommend() {
         redev: redevPossible ? '재건축 연한 초과' : `재건축까지 ${30-age}년`,
         trend: priceTrend,
         score: a._score || 0,
-        commute: commute ? commute + '분' : '미측정',
+        commute: commute || '미측정',
         shortage: loan > 0 ? loan + '억 부족' : '구매가능',
         edu: eduMap[a.name] || null,
       }
@@ -2413,7 +2413,7 @@ async function runAiRecommend() {
 ## 현재 부동산 시장 환경 (실제 데이터 기반)
 ${mkt.baseRate ? `- 한국은행 기준금리: ${mkt.baseRate.current}% (${mkt.baseRate.time} 기준), 6개월 전 대비 ${mkt.baseRate.change6m > 0 ? '+' : ''}${mkt.baseRate.change6m}%p → ${mkt.baseRate.trend}` : ''}
 ${mkt.mortgageRate ? `- 주택담보대출 평균금리: ${mkt.mortgageRate.current}% (${mkt.mortgageRate.trend})` : ''}
-${mkt.priceIndex ? `- 전국 아파트 매매가격지수: ${mkt.priceIndex.current} (${mkt.priceIndex.time}), 전월 대비 ${mkt.priceIndex.changeRate > 0 ? '+' : ''}${mkt.priceIndex.changeRate}% → ${mkt.priceIndex.trend}` : ''}
+${mkt.priceIndex ? `- 전국 아파트 매매가격지수: ${mkt.priceIndex.current} (${mkt.priceIndex.time}), ${mkt.priceIndex.changeRate !== null ? '전월 대비 '+(mkt.priceIndex.changeRate > 0 ? '+' : '')+mkt.priceIndex.changeRate+'%' : ''} → ${mkt.priceIndex.trend}` : ''}
 ${mkt.supplyDemand ? `- 매매수급지수: ${mkt.supplyDemand.index} → ${mkt.supplyDemand.interpretation} (100 기준: 초과=수요우위, 미만=공급우위)` : ''}
 → 위 시장 지표를 매수 타이밍 분석에 반드시 구체적으로 인용하세요.
 
