@@ -3091,8 +3091,22 @@ async function goToRec() {
   if(sp) sp.textContent = fmtPower(state.power*10000)
   if(sd) sd.textContent = `자산 ${fmt(state.asset*10000)} + 대출 포함`
 
-  // 시도→구 필터 초기화
-  onFilterSidoChange()
+  // 시도→구 필터 초기화 (데이터 재로드 없이 UI만)
+  const sidoEl = $('filterSido')
+  if(sidoEl) {
+    const sido = state.regions?.length ? state.regions[0] : '서울'
+    sidoEl.value = sido
+    const sggSel = $('filterSigungu')
+    if(sggSel) {
+      sggSel.innerHTML = '<option value="">전체 구</option>'
+      const opts = MAP_SGG[sido] || []
+      opts.filter(([,v]) => v !== 'sido').forEach(([label, val]) => {
+        const o = document.createElement('option')
+        o.value = val; o.textContent = label
+        sggSel.appendChild(o)
+      })
+    }
+  }
   ;['filterSigungu','filterSize','filterBudget','filterMinCount','sortBy'].forEach(id => {
     const el = $(id)
     if(el && !el._bound) { el.addEventListener('change', onFilterChange); el._bound=true }
@@ -3103,7 +3117,7 @@ async function goToRec() {
   })
 
   try {
-    const sidos = [...new Set(state.regions)]
+    const sidos = [...new Set(state.regions?.length ? state.regions : ['서울'])]
     if(!sidos.length) sidos.push('서울')
 
     const results = await Promise.all(
