@@ -2209,6 +2209,19 @@ async function runAiRecommend() {
   btn.innerHTML = '<span style="font-size:18px">⏳</span> 분석 중... (20~30초 소요)'
   result.style.display = 'block'
 
+  // allAptData가 로딩 중이면 최대 5초 대기
+  if(!allAptData?.length) {
+    const setStatus0 = msg => result.innerHTML = `<div style="color:var(--muted);font-size:13px;text-align:center;padding:20px">${msg}</div>`
+    setStatus0('단지 데이터 로딩 중...')
+    await new Promise(resolve => {
+      let waited = 0
+      const check = setInterval(() => {
+        waited += 300
+        if(allAptData?.length || waited >= 5000) { clearInterval(check); resolve() }
+      }, 300)
+    })
+  }
+
   const setStatus = (msg) => result.innerHTML = `<div style="color:var(--muted);font-size:13px;text-align:center;padding:20px">${msg}</div>`
 
   try {
