@@ -1831,16 +1831,18 @@ async function loadAiEduData(aptName, region) {
     if(!geoRes?.x || !geoRes?.y) {
       // geo 실패시 카카오 키워드로 시도
       await new Promise(resolve => {
-        ps.keywordSearch(`${region} ${simpleName}`, (r,s) => {
-          if(s === kakao.maps.services.Status.OK && r[0]) {
-            fetch(`${PROXY}?type=schools&lat=${r[0].y}&lng=${r[0].x}`, {headers:HDR}).then(rs=>rs.json()).then(schoolsRes => {
-              fetch(`${PROXY}?type=academy_density&lat=${r[0].y}&lng=${r[0].x}`, {headers:HDR}).then(ra=>ra.json()).then(academyRes => {
-                renderEduSection(section, schoolsRes, academyRes)
-              })
-            })
-          } else {
-            section.innerHTML = '<div style="font-size:11px;font-weight:600;color:var(--muted);margin-bottom:4px">🏫 주변 교육환경</div><div style="font-size:11px;color:var(--muted)">위치 정보를 찾을 수 없어요</div>'
-          }
+        ps.keywordSearch(`${region} ${simpleName}`, async (r,s) => {
+          try {
+            if(s === kakao.maps.services.Status.OK && r[0]) {
+              const [schoolsRes, academyRes] = await Promise.all([
+                fetch(`${PROXY}?type=schools&lat=${r[0].y}&lng=${r[0].x}`, {headers:HDR}).then(rs=>rs.json()).catch(()=>({ok:false})),
+                fetch(`${PROXY}?type=academy_density&lat=${r[0].y}&lng=${r[0].x}`, {headers:HDR}).then(ra=>ra.json()).catch(()=>({ok:false})),
+              ])
+              renderEduSection(section, schoolsRes, academyRes)
+            } else {
+              section.innerHTML = '<div style="font-size:11px;font-weight:600;color:var(--muted);margin-bottom:4px">🏫 주변 교육환경</div><div style="font-size:11px;color:var(--muted)">위치 정보를 찾을 수 없어요</div>'
+            }
+          } catch(e) {}
           resolve()
         })
       })
@@ -2229,11 +2231,13 @@ async function runAiRecommend() {
         return true
       })
     } else {
+      // allAptData 없을 때 직접 fetch (전체 지역 코드 사용)
+      setStatus('실거래 데이터 로딩 중...')
       const regions = state.regions?.length ? state.regions : ['서울']
       const codes = regions.flatMap(r => {
         const rc = REGION_CODES[r] || ''
-        return rc.split(',').filter((_,i) => i % 3 === 0).slice(0,3).map(c=>c.trim()).filter(Boolean)
-      })
+        return rc.split(',').map(c=>c.trim()).filter(Boolean)
+      }).slice(0, 15) // 최대 15개 구
       const results = await Promise.all(codes.map(code =>
         fetch(`${PROXY}?type=trade&code=${code}`, {headers:HDR}).then(r=>r.json()).catch(()=>({ok:false,data:[]}))
       ))
