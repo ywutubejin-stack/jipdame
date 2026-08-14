@@ -2234,6 +2234,7 @@ async function runAiRecommend() {
     // ─ 1. 후보 단지 수집 ─
     setStatus('실거래 데이터 수집 중...')
     let candidateApts = []
+    let freshFetchedData = null // allAptData 없을 때 직접 fetch한 전체 데이터 (예산 부족분 계산용으로 재사용)
 
     if(allAptData?.length) {
       // 현재 선택된 지역 코드로 필터링 (이전 지역 캐시 오염 방지)
@@ -2255,6 +2256,7 @@ async function runAiRecommend() {
         fetch(`${PROXY}?type=trade&code=${code}`, {headers:HDR}).then(r=>r.json()).catch(()=>({ok:false,data:[]}))
       ))
       const allData = results.flatMap(r => r.ok ? (r.data||[]) : [])
+      freshFetchedData = allData
       candidateApts = allData.map(a => ({
         ...a,
         _score: calcAptScore(a),
@@ -2280,14 +2282,14 @@ async function runAiRecommend() {
       if(sizeFiltered.length >= 5) candidateApts = sizeFiltered
     }
 
-    // 전체 데이터 보관 (예산 부족분 계산용)
-    let allDataForBudget = allAptData?.length ? allAptData : []
+    // 전체 데이터 보관 (예산 부족분 계산용) — 위에서 이미 가져온 데이터를 재사용 (별도 재조회 시 일부 구 API 실패로 빈 데이터가 되는 문제 방지)
+    let allDataForBudget = allAptData?.length ? allAptData : (freshFetchedData || [])
     if(!allDataForBudget.length) {
       const regions2 = state.regions?.length ? state.regions : ['서울']
       const codes2 = regions2.flatMap(r => {
         const rc = REGION_CODES[r] || ''
-        return rc.split(',').filter((_,i) => i % 3 === 0).slice(0,3).map(c=>c.trim()).filter(Boolean)
-      })
+        return rc.split(',').map(c=>c.trim()).filter(Boolean)
+      }).slice(0, 15)
       const results2 = await Promise.all(codes2.map(code =>
         fetch(`${PROXY}?type=trade&code=${code}`, {headers:HDR}).then(r=>r.json()).catch(()=>({ok:false,data:[]}))
       ))
