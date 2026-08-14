@@ -3130,6 +3130,7 @@ async function goToRec() {
     const rawApts = []
     results.forEach(res=>{ if(res.ok&&res.data) rawApts.push(...res.data) })
 
+    calcPower() // processRecData 직전에 다시 계산 보장
     processRecData(rawApts)
     return
   } catch(e) {
@@ -3145,7 +3146,7 @@ function processRecData(rawApts) {
   // 중복제거 + 평수필터 + 예산필터 + 대출계산 캐시
   {
     const seen = new Set()
-    const budgetMax = state.power * 10000 * 1.3
+    const budgetMax = (state.power||0) > 0 ? state.power * 10000 * 1.3 : Infinity
 
     allAptData = rawApts.filter(apt=>{
       const key = (apt.sggCd||'')+'_'+apt.name
@@ -3659,8 +3660,12 @@ async function loadSupply(region='서울') {
   if(!el) return
   el.innerHTML = '<div style="color:var(--muted);font-size:12px;text-align:center;padding:12px">로딩 중...</div>'
   try {
-    const res  = await fetch(`${PROXY}?type=supply&region=${encodeURIComponent(region)}`, {headers:HDR})
+    const [res, mktRes] = await Promise.all([
+      fetch(`${PROXY}?type=supply&region=${encodeURIComponent(region)}`, {headers:HDR}),
+      fetch(`${PROXY}?type=market_context`, {headers:HDR}).catch(()=>null)
+    ])
     const data = await res.json()
+    const mkt  = mktRes ? await mktRes.json().catch(()=>({ok:false})) : {ok:false}
     if(!data.ok) { el.innerHTML = '<div style="color:var(--muted);font-size:11px;text-align:center;padding:8px">데이터 없음</div>'; return }
 
     const { byYear, recent, total } = data.data
@@ -3702,12 +3707,36 @@ async function loadSupply(region='서울') {
           </div>`).join('')}
       </div>
 
+      ${(() => {
+        const md = mkt?.data || {}
+        const thisYr   = byYear[nowYr] || 0
+        // 올해 제외, 과거 실적 있는 연도들의 평균 대비 올해 공급 수준 비교
+        const pastYears = years.filter(y => y < nowYr && byYear[y] > 0)
+        const pastAvg   = pastYears.length ? pastYears.reduce((s,y)=>s+byYear[y],0)/pastYears.length : null
+        const supplyRatio = pastAvg ? thisYr / pastAvg : null
+        const supplyLevel = supplyRatio == null ? null : supplyRatio >= 1.2 ? 'high' : supplyRatio <= 0.8 ? 'low' : 'mid'
+        const supplyLabel = { high:'평년 대비 많음', mid:'평년과 비슷', low:'평년 대비 적음' }[supplyLevel] || '데이터 부족'
+
+        const sdIndex = md.supplyDemand?.index ?? null
+        const demandLevel = sdIndex == null ? null : sdIndex >= 105 ? 'high' : sdIndex <= 95 ? 'low' : 'mid'
+
+        // 공급수준 x 수급지수 조합 → 종합 전망
+        let outlook, outlookColor
+        if(supplyLevel === 'high' && demandLevel === 'low') { outlook = '공급 과잉 + 수요 약세가 겹쳐 가격 하방 압력이 상대적으로 큰 국면이에요.'; outlookColor = 'var(--down)' }
+        else if(supplyLevel === 'low' && demandLevel === 'high') { outlook = '공급 부족 + 수요 우위가 겹쳐 가격 상승 압력이 상대적으로 큰 국면이에요.'; outlookColor = 'var(--up)' }
+        else if(supplyLevel === 'high' && demandLevel === 'high') { outlook = '공급은 많지만 수요도 강해 물량이 무리 없이 소화될 가능성이 있어요.'; outlookColor = 'var(--gold)' }
+        else if(supplyLevel === 'low' && demandLevel === 'low') { outlook = '공급은 적지만 수요도 약해 가격이 뚜렷한 방향 없이 보합권에 머물 가능성이 있어요.'; outlookColor = 'var(--muted)' }
+        else { outlook = '공급·수요 지표가 아직 뚜렷한 한쪽 신호를 주지 않는 중립 국면이에요.'; outlookColor = 'var(--gold)' }
+
+        return `
       <div style="margin-top:12px;padding:10px;background:var(--bg3);border-radius:10px;font-size:11px;line-height:1.7;color:var(--muted)">
         💡 <strong style="color:var(--text)">공급물량 해석</strong><br>
-        ${(byYear[nowYr]||0) > 5000
-          ? `올해 ${(byYear[nowYr]||0).toLocaleString()}세대 분양 예정 — 공급 많은 편이에요. 가격 상승 압력이 제한될 수 있어요.`
-          : `올해 ${(byYear[nowYr]||0).toLocaleString()}세대 분양 예정 — 공급 적은 편이에요. 수요 대비 공급 부족 시 가격 상승 요인이 돼요.`}
+        올해 ${thisYr.toLocaleString()}세대 분양 예정 — ${pastAvg ? `최근 ${pastYears.length}개년 평균(${Math.round(pastAvg).toLocaleString()}세대) 대비 <strong style="color:var(--text)">${supplyLabel}</strong>이에요.` : '과거 비교 데이터가 부족해요.'}
+        ${sdIndex != null ? `<br>매매수급지수 ${sdIndex} (${md.supplyDemand.interpretation}) 기준으로 볼 때,` : ''}
+        <div style="margin-top:6px;padding:8px;background:var(--bg2);border-radius:8px;color:${outlookColor};font-weight:600">${outlook}</div>
+        <div style="margin-top:6px;font-size:10px">※ 실제 공급 물량과 시장 수급지수를 결합한 참고용 해석이며, 실제 가격은 금리·정책 등 다른 요인에도 영향을 받아요.</div>
       </div>`
+      })()}`
 
   } catch(e) {
     el.innerHTML = '<div style="color:var(--muted);font-size:11px;text-align:center;padding:8px">데이터 로드 실패</div>'
