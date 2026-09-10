@@ -288,7 +288,7 @@ body{background:#07090f;}
 
 
 <!-- 온보딩 오버레이 -->
-<div id="onboardingOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:9998;align-items:center;justify-content:center;padding:20px">
+<div id="onboardingOverlay" onclick="if(event.target===this) closeOnboarding()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:9998;align-items:center;justify-content:center;padding:20px">
   <div style="background:var(--card);border-radius:20px;padding:28px 24px;max-width:360px;width:100%;border:1px solid var(--border2)">
     <div style="font-size:28px;text-align:center;margin-bottom:12px">🏠</div>
     <div style="font-family:var(--serif);font-size:20px;font-weight:700;text-align:center;margin-bottom:8px">집담에 오신 걸 환영해요</div>
@@ -319,13 +319,13 @@ body{background:#07090f;}
     <div class="ob-icon">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
     </div>
-    <div class="ob-title">지금 살까, 말까?</div>
-    <div class="ob-sub">내 자본 상황에 맞는 단지를 추천하고<br>AI가 매수 타이밍을 분석해드려요</div>
+    <div class="ob-title" id="heroTitle">지금 살까, 말까?</div>
+    <div class="ob-sub" id="heroSub">내 자본 상황에 맞는 단지를 추천하고<br>AI가 매수 타이밍을 분석해드려요</div>
   </div>
 
-  <div class="ob-step-label">STEP 1 · 매수 목적</div>
+  <div class="ob-step-label" id="step1Label">STEP 1 · 매수 목적</div>
   <div class="ob-card">
-    <div class="ob-card-title"><span>🎯</span> 어떤 목적으로 구매하시나요?</div>
+    <div class="ob-card-title" id="purposeCardTitle"><span>🎯</span> 어떤 목적으로 구매하시나요?</div>
     <div class="purpose-grid">
       <div class="purpose-card on" data-purpose="live">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
@@ -569,7 +569,7 @@ body{background:#07090f;}
   </div>
 
   <!-- 통합 필터 바 (목록+지도 공유) -->
-  <div style="display:flex;gap:6px;margin-bottom:6px;overflow-x:auto;padding-bottom:4px;scrollbar-width:none">
+  <div style="display:flex;gap:6px;margin-bottom:6px;overflow-x:auto;padding-bottom:4px;scrollbar-width:none;mask-image:linear-gradient(to right, black calc(100% - 24px), transparent 100%);-webkit-mask-image:linear-gradient(to right, black calc(100% - 24px), transparent 100%)">
     <select id="filterSido" onchange="onFilterSidoChange()" style="background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:6px 10px;font-size:11px;cursor:pointer;flex-shrink:0">
       <option value="서울">서울</option>
       <option value="경기">경기</option>
@@ -639,7 +639,7 @@ body{background:#07090f;}
   <div style="font-size:11px;color:var(--muted);margin-bottom:12px">전국 실거래가 데이터 · 실시간 연동 · <span id="mktDataDate" style="color:var(--gold)"></span></div>
 
   <!-- 지역 선택 -->
-  <div style="display:flex;gap:6px;margin-bottom:12px;overflow-x:auto;scrollbar-width:none;padding-bottom:2px">
+  <div style="display:flex;gap:6px;margin-bottom:12px;overflow-x:auto;scrollbar-width:none;padding-bottom:2px;mask-image:linear-gradient(to right, black calc(100% - 24px), transparent 100%);-webkit-mask-image:linear-gradient(to right, black calc(100% - 24px), transparent 100%)">
     <select id="mktSido" style="background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:6px 10px;font-size:12px;cursor:pointer;flex-shrink:0">
       <option value="sido">서울 전체</option>
       <option value="11680">강남구</option>
@@ -2222,7 +2222,7 @@ async function runAiRecommend() {
   const result = $('aiRecommendResult')
   if(!btn || !result) return
   btn.disabled = true
-  btn.innerHTML = '<span style="font-size:18px">⏳</span> 분석 중... (20~30초 소요)'
+  btn.innerHTML = '<span style="font-size:18px">⏳</span> 분석 중... (최대 1분 소요될 수 있어요)'
   result.style.display = 'block'
 
   // allAptData가 로딩 중이면 최대 5초 대기
@@ -2665,6 +2665,19 @@ function setMode(mode) {
   // 로고 서브 텍스트
   const sub = $('logoSub')
   if(sub) sub.textContent = isBuy ? '부동산 매수 결정 도우미' : '전세 탐색 도우미'
+
+  // 히어로 문구 + STEP1 라벨 (매수/전세 모드별)
+  const heroTitle = $('heroTitle'), heroSub = $('heroSub')
+  if(heroTitle) heroTitle.textContent = isBuy ? '지금 살까, 말까?' : '지금 전세 들어갈까?'
+  if(heroSub) heroSub.innerHTML = isBuy
+    ? '내 자본 상황에 맞는 단지를 추천하고<br>AI가 매수 타이밍을 분석해드려요'
+    : '내 예산 상황에 맞는 전세 단지를 추천하고<br>AI가 최적의 전세 매물을 분석해드려요'
+  const step1Label = $('step1Label')
+  if(step1Label) step1Label.textContent = isBuy ? 'STEP 1 · 매수 목적' : 'STEP 1 · 거주 목적'
+  const purposeCardTitle = $('purposeCardTitle')
+  if(purposeCardTitle) purposeCardTitle.innerHTML = isBuy
+    ? '<span>🎯</span> 어떤 목적으로 구매하시나요?'
+    : '<span>🎯</span> 어떤 목적으로 찾으세요?'
 
   // 내조건 섹션 전환
   const buyC = $('buyConditions'), rentC = $('rentConditions')
