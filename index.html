@@ -1017,13 +1017,15 @@ const PROXY = 'https://edjpotfmrmpklnujnuon.supabase.co/functions/v1/proxy'
 const ANON  = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVkanBvdGZtcm1wa2xudWpudW9uIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkzMjA1NjcsImV4cCI6MjA5NDg5NjU2N30.nz4JTbq8eqFmXXHMFEX9a13TCvpDOKfCmYlPOaBxSlE'
 const HDR   = { 'Authorization': `Bearer ${ANON}` }
 
-// 동시 요청 개수 제한 — 지역 코드를 한꺼번에 다 쏘면 프록시/정부 API가 밀려 타임아웃이 몰림
-async function mapWithConcurrency(items, limit, fn) {
+// 동시 요청 개수 + 간격 제한 — 정부 API가 초당 요청 허용치가 낮아서, 동시 개수뿐 아니라
+// 요청 사이 실제 대기시간(pacing)도 넣어야 LIMITED_NUMBER_OF_SERVICE_REQUESTS_PER_SECOND 에러를 피할 수 있음
+async function mapWithConcurrency(items, limit, fn, delayMs = 0) {
   const results = new Array(items.length)
   let idx = 0
   async function worker() {
     while (idx < items.length) {
       const cur = idx++
+      if (delayMs && cur > 0) await new Promise(r => setTimeout(r, delayMs))
       results[cur] = await fn(items[cur])
     }
   }
@@ -2266,8 +2268,9 @@ async function runAiRecommend() {
         const rc = REGION_CODES[r] || ''
         return rc.split(',').map(c=>c.trim()).filter(Boolean)
       }).slice(0, 15) // 최대 15개 구
-      const results = await mapWithConcurrency(codes, 3, code =>
-        fetch(`${PROXY}?type=trade&code=${code}`, {headers:HDR}).then(r=>r.json()).catch(()=>({ok:false,data:[]}))
+      const results = await mapWithConcurrency(codes, 2, code =>
+        fetch(`${PROXY}?type=trade&code=${code}`, {headers:HDR}).then(r=>r.json()).catch(()=>({ok:false,data:[]})),
+        350
       )
       const allData = results.flatMap(r => r.ok ? (r.data||[]) : [])
       freshFetchedData = allData
@@ -2304,8 +2307,9 @@ async function runAiRecommend() {
         const rc = REGION_CODES[r] || ''
         return rc.split(',').map(c=>c.trim()).filter(Boolean)
       }).slice(0, 15)
-      const results2 = await mapWithConcurrency(codes2, 5, code =>
-        fetch(`${PROXY}?type=trade&code=${code}`, {headers:HDR}).then(r=>r.json()).catch(()=>({ok:false,data:[]}))
+      const results2 = await mapWithConcurrency(codes2, 2, code =>
+        fetch(`${PROXY}?type=trade&code=${code}`, {headers:HDR}).then(r=>r.json()).catch(()=>({ok:false,data:[]})),
+        350
       )
       allDataForBudget = results2.flatMap(r => r.ok ? (r.data||[]) : [])
     }
