@@ -1017,6 +1017,20 @@ const PROXY = 'https://edjpotfmrmpklnujnuon.supabase.co/functions/v1/proxy'
 const ANON  = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVkanBvdGZtcm1wa2xudWpudW9uIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkzMjA1NjcsImV4cCI6MjA5NDg5NjU2N30.nz4JTbq8eqFmXXHMFEX9a13TCvpDOKfCmYlPOaBxSlE'
 const HDR   = { 'Authorization': `Bearer ${ANON}` }
 
+// 동시 요청 개수 제한 — 지역 코드를 한꺼번에 다 쏘면 프록시/정부 API가 밀려 타임아웃이 몰림
+async function mapWithConcurrency(items, limit, fn) {
+  const results = new Array(items.length)
+  let idx = 0
+  async function worker() {
+    while (idx < items.length) {
+      const cur = idx++
+      results[cur] = await fn(items[cur])
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker))
+  return results
+}
+
 /* ── 유틸 ── */
 const $ = id => document.getElementById(id)
 const fmt = v => {
@@ -2252,9 +2266,9 @@ async function runAiRecommend() {
         const rc = REGION_CODES[r] || ''
         return rc.split(',').map(c=>c.trim()).filter(Boolean)
       }).slice(0, 15) // 최대 15개 구
-      const results = await Promise.all(codes.map(code =>
+      const results = await mapWithConcurrency(codes, 3, code =>
         fetch(`${PROXY}?type=trade&code=${code}`, {headers:HDR}).then(r=>r.json()).catch(()=>({ok:false,data:[]}))
-      ))
+      )
       const allData = results.flatMap(r => r.ok ? (r.data||[]) : [])
       freshFetchedData = allData
       candidateApts = allData.map(a => ({
@@ -2290,9 +2304,9 @@ async function runAiRecommend() {
         const rc = REGION_CODES[r] || ''
         return rc.split(',').map(c=>c.trim()).filter(Boolean)
       }).slice(0, 15)
-      const results2 = await Promise.all(codes2.map(code =>
+      const results2 = await mapWithConcurrency(codes2, 5, code =>
         fetch(`${PROXY}?type=trade&code=${code}`, {headers:HDR}).then(r=>r.json()).catch(()=>({ok:false,data:[]}))
-      ))
+      )
       allDataForBudget = results2.flatMap(r => r.ok ? (r.data||[]) : [])
     }
 
