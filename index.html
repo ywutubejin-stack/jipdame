@@ -4197,13 +4197,15 @@ function renderMapMarkers(data) {
   const sido = (() => { const v=$('filterSido')?.value; return (!v||v==='')?'서울':v })()
   const geocoder = new kakao.maps.services.Geocoder()
   const ps = new kakao.maps.services.Places()
-  const targets = data.slice(0,15)
+  const targets = data.slice(0,25)
   let idx = 0
 
   function next() {
     if(idx>=targets.length) return
     const apt = targets[idx++]
-    const region = apt.sigungu || SGG_NAMES[apt.sggCd] || sido
+    // 공동중개 거래는 sigungu가 "서울 성동구, 서울 용산구"처럼 여러 구가 콤마로 붙어 나와서
+    // 그대로 쓰면 주소 검색이 실패함 — 첫 번째 구만 사용
+    const region = (apt.sigungu || sido || '서울').split(',')[0].trim()
     const cacheKey = apt.sggCd + '_' + apt.name
     if(window._geoCache[cacheKey]) {
       apt._loc = window._geoCache[cacheKey]
