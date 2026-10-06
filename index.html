@@ -255,6 +255,24 @@ body{background:#07090f;}
   #recList { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
   #recList .rc { margin:0; }
 }
+
+/* 지도 로딩 오버레이 */
+.map-loading{position:absolute;inset:0;border-radius:14px;background:rgba(10,12,18,.82);backdrop-filter:blur(2px);-webkit-backdrop-filter:blur(2px);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;z-index:5;padding:20px;text-align:center}
+.map-spinner{width:44px;height:44px;border-radius:50%;border:3px solid rgba(232,200,122,.18);border-top-color:var(--gold);animation:mapSpin .9s linear infinite}
+.map-loading-text{font-size:14px;font-weight:600;color:var(--text)}
+.map-loading-text::after{content:'';display:inline-block;width:1.2em;text-align:left;animation:mapDots 1.4s steps(4,end) infinite}
+.map-loading-sub{font-size:11px;color:var(--muted)}
+.map-loading-bar{width:70%;max-width:220px;height:4px;border-radius:2px;background:rgba(255,255,255,.08);overflow:hidden;margin-top:4px}
+.map-loading-bar>div{height:100%;width:0;border-radius:2px;background:var(--gold);transition:width .35s ease}
+.map-loading-bar.indeterminate>div{width:40%;animation:mapSlide 1.3s ease-in-out infinite}
+.map-loading.compact{inset:auto;top:10px;left:50%;transform:translateX(-50%);width:auto;min-width:190px;max-width:calc(100% - 24px);flex-direction:row;flex-wrap:wrap;justify-content:center;gap:4px 10px;padding:8px 14px;border-radius:999px;background:rgba(16,19,28,.92);border:1px solid var(--border2);box-shadow:0 4px 16px rgba(0,0,0,.4);backdrop-filter:none;-webkit-backdrop-filter:none}
+.map-loading.compact .map-spinner{width:16px;height:16px;border-width:2px}
+.map-loading.compact .map-loading-text{font-size:12px}
+.map-loading.compact .map-loading-sub{font-size:11px;color:var(--gold)}
+.map-loading.compact .map-loading-bar{width:100%;max-width:none;margin-top:0;height:3px}
+@keyframes mapSpin{to{transform:rotate(360deg)}}
+@keyframes mapDots{0%{content:''}25%{content:'.'}50%{content:'..'}75%{content:'...'}100%{content:''}}
+@keyframes mapSlide{0%{transform:translateX(-100%)}100%{transform:translateX(250%)}}
 </style>
 </head>
 <body>
@@ -587,10 +605,10 @@ body{background:#07090f;}
     </select>
     <select id="filterSize" onchange="onFilterChange()" style="background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:6px 10px;font-size:11px;cursor:pointer;flex-shrink:0">
       <option value="">전체</option>
-      <option value="s59">59㎡ 이하</option>
-      <option value="s84">59~84㎡</option>
-      <option value="s114">84~114㎡</option>
-      <option value="s115">114㎡ 이상</option>
+      <option value="s59">20평대 이하</option>
+      <option value="s84">30평대 (84㎡)</option>
+      <option value="s114">40평대 (114㎡)</option>
+      <option value="s115">50평대 이상</option>
     </select>
     <select id="filterBudget" onchange="onFilterChange()" style="background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:6px 10px;font-size:11px;cursor:pointer;flex-shrink:0">
       <option value="">전체 가격</option>
@@ -624,7 +642,15 @@ body{background:#07090f;}
 
   <!-- 지도 뷰 -->
   <div id="recMap" style="display:none">
-    <div id="mapKakaoMap" style="width:100%;height:380px;border-radius:14px;overflow:hidden;margin-bottom:10px;background:var(--bg3)"></div>
+    <div style="position:relative;margin-bottom:10px">
+      <div id="mapKakaoMap" style="width:100%;height:380px;border-radius:14px;overflow:hidden;background:var(--bg3)"></div>
+      <div id="mapLoading" class="map-loading" style="display:none">
+        <div class="map-spinner"></div>
+        <div class="map-loading-text" id="mapLoadingText">단지 데이터 불러오는 중</div>
+        <div class="map-loading-sub" id="mapLoadingSub">처음엔 10~15초 정도 걸릴 수 있어요</div>
+        <div class="map-loading-bar"><div id="mapLoadingFill"></div></div>
+      </div>
+    </div>
     <div style="display:flex;gap:12px;font-size:11px;color:var(--muted);margin-bottom:12px;justify-content:center">
       <span>🟢 70점 이상</span><span>🟡 50~69점</span><span>🔴 49점 이하</span>
     </div>
@@ -1016,6 +1042,9 @@ body{background:#07090f;}
 const PROXY = 'https://edjpotfmrmpklnujnuon.supabase.co/functions/v1/proxy'
 const ANON  = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVkanBvdGZtcm1wa2xudWpudW9uIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkzMjA1NjcsImV4cCI6MjA5NDg5NjU2N30.nz4JTbq8eqFmXXHMFEX9a13TCvpDOKfCmYlPOaBxSlE'
 const HDR   = { 'Authorization': `Bearer ${ANON}` }
+
+// 평형 필터 구간(전용㎡). 84.97㎡가 85로 반올림돼 내려오므로 30평대는 66~100㎡로 넉넉히 잡음 (내조건 평수 칩과 동일 기준)
+const SIZE_RANGES = {'s59':[0,66],'s84':[66,100],'s114':[100,130],'s115':[130,999]}
 
 // 동시 요청 개수 + 간격 제한 — 정부 API가 초당 요청 허용치가 낮아서, 동시 개수뿐 아니라
 // 요청 사이 실제 대기시간(pacing)도 넣어야 LIMITED_NUMBER_OF_SERVICE_REQUESTS_PER_SECOND 에러를 피할 수 있음
@@ -2914,7 +2943,7 @@ function getFilteredSorted() {
   let list = [...allAptData]
   const sigungu = $('filterSigungu')?.value || ''
   const sizeF   = $('filterSize')?.value || ''
-  const sizeRanges = {'s59':[0,60],'s84':[60,85],'s114':[85,115],'s115':[115,999]}
+  const sizeRanges = SIZE_RANGES
   const budgetF = parseInt($('filterBudget')?.value || '0') * 100000000
   const jsr     = parseInt($('filterJsr')?.value || '0')
   const buy     = $('filterBuy')?.value || ''
@@ -2925,7 +2954,7 @@ function getFilteredSorted() {
     const sggCodes = sigungu.split(',')
     list = list.filter(a => sggCodes.includes(a.sggCd) || (a.sigungu||'').includes(sigungu))
   }
-  if(sizeF && sizeRanges[sizeF]) { const [mn,mx]=sizeRanges[sizeF]; list=list.filter(a=>(a.areas||[a.area||0]).some(ar=>ar>=mn&&ar<mx)) }
+  if(sizeF && sizeRanges[sizeF]) { const [mn,mx]=sizeRanges[sizeF]; list=list.filter(a=>(a.area||0)>=mn&&(a.area||0)<mx) } // 카드에 표시되는 대표 평형 기준
   if(budgetF > 0) list = list.filter(a => (a.avgPrice||0) <= budgetF)
   const minCount = parseInt($('filterMinCount')?.value || '0')
   if(minCount > 0) list = list.filter(a => (a.count||0) >= minCount)
@@ -2950,13 +2979,24 @@ function getFilteredSorted() {
   return list
 }
 
+// 결과 개수 + 적용 중인 단지 규모 필터를 함께 표시 (조용히 결과가 줄어드는 걸 방지)
+function setRecCount(n) {
+  const rc = $('recCount'); if(!rc) return
+  const mc = parseInt($('filterMinCount')?.value || '0')
+  rc.textContent = `${n}개 단지` + (mc > 0 ? ` · 거래 ${mc}건 이상 단지만 표시 중 (위 필터에서 변경)` : '')
+}
+
 /* ── 필터 변경시 카드 재렌더 ── */
 function applyFilter() {
   const filtered = getFilteredSorted()
-  const rc = $('recCount')
-  if(rc) rc.textContent = `${filtered.length}개 단지`
+  setRecCount(filtered.length)
   if(currentView === 'list') {
     renderCards(filtered)
+    // 필터 바꾼 결과가 눈에 띄도록 목록 맨 위로 이동 + 짧은 페이드 효과
+    const lw = $('recList')
+    if(lw) { lw.style.opacity = '.35'; requestAnimationFrame(() => { lw.style.transition = 'opacity .25s'; lw.style.opacity = '1' }) }
+    const sc = $('scrollEl'), cnt = $('recCount')
+    if(sc && cnt && sc.scrollTop > cnt.offsetTop) sc.scrollTo({ top: Math.max(cnt.offsetTop - 120, 0), behavior: 'smooth' })
   } else {
     // 기존 마커 제거 후 재표시
     kakaoMap?._overlays?.forEach(o => o.setMap(null))
@@ -3217,12 +3257,10 @@ function processRecData(rawApts) {
 
     // 시군구 필터 옵션 채우기
 
-    // 결과 수 표시
-    const rc = $('recCount')
-    if(rc) rc.textContent = `${allAptData.length}개 단지`
-
-    // 카드 렌더링
-    renderCards(getFilteredSorted())
+    // 카드 렌더링 + 결과 수 표시 (필터 적용 후 개수 기준)
+    const filteredInit = getFilteredSorted()
+    setRecCount(filteredInit.length)
+    renderCards(filteredInit)
 
   $('lbar')?.classList.remove('on')
 }
@@ -4105,6 +4143,21 @@ async function renderRentMapView() {
 }
 
 let _mapRenderTimer = null
+// 지도 로딩 오버레이: pct가 null이면 무한 진행바, 숫자면 퍼센트 진행바
+function showMapLoading(text, sub, pct) {
+  const el = $('mapLoading'); if(!el) return
+  el.style.display = 'flex'
+  el.classList.toggle('compact', pct != null)
+  if($('mapLoadingText')) $('mapLoadingText').textContent = text || ''
+  if($('mapLoadingSub'))  $('mapLoadingSub').textContent  = sub || ''
+  const bar = el.querySelector('.map-loading-bar'), fill = $('mapLoadingFill')
+  if(pct == null) { bar?.classList.add('indeterminate'); if(fill) fill.style.width = '' }
+  else { bar?.classList.remove('indeterminate'); if(fill) fill.style.width = Math.max(4, Math.min(100, pct)) + '%' }
+}
+function hideMapLoading() {
+  const el = $('mapLoading'); if(el) el.style.display = 'none'
+}
+
 function renderMapView() {
   clearTimeout(_mapRenderTimer)
   _mapRenderTimer = setTimeout(_doRenderMapView, 300)
@@ -4116,16 +4169,18 @@ async function _doRenderMapView() {
   const sortVal = $('sortBy')?.value || 'score_desc'
   const budgetMax = parseInt($('filterBudget')?.value || '0') * 100000000
   const sizeFilter = $('filterSize')?.value || ''
-  const sizeRangesMap = {'s59':[0,60],'s84':[60,85],'s114':[85,115],'s115':[115,999]}
+  const sizeRangesMap = SIZE_RANGES
   const listEl = $('mapAptList')
 
   if(listEl) listEl.innerHTML = '<div style="text-align:center;padding:20px;color:var(--muted);font-size:12px">불러오는 중...</div>'
+  showMapLoading('단지 데이터 불러오는 중', '처음엔 10~15초 정도 걸릴 수 있어요', null)
 
   const url = (!sgg || sgg === '')
     ? `${PROXY}?type=trade&sido=${encodeURIComponent(sido)}`
     : `${PROXY}?type=trade&code=${sgg}`
   const res = await fetch(url, {headers:HDR}).then(r=>r.json()).catch(()=>({ok:false}))
   if(!res.ok || !res.data?.length) {
+    hideMapLoading()
     if(listEl) listEl.innerHTML = '<div style="text-align:center;padding:20px;color:var(--muted);font-size:12px">데이터 없음</div>'
     return
   }
@@ -4146,7 +4201,7 @@ async function _doRenderMapView() {
     const canBuy = !blocked && selfNeed<=state.asset*10000
     return {...a, _score:calcAptScore(a), _canBuy:canBuy, _blocked:blocked}
   })
-  if(sizeFilter && sizeRangesMap[sizeFilter]) { const [mn,mx]=sizeRangesMap[sizeFilter]; data=data.filter(a=>(a.areas||[a.area||0]).some(ar=>ar>=mn&&ar<mx)) }
+  if(sizeFilter && sizeRangesMap[sizeFilter]) { const [mn,mx]=sizeRangesMap[sizeFilter]; data=data.filter(a=>(a.area||0)>=mn&&(a.area||0)<mx) }
   if(budgetMax > 0) data = data.filter(a => (a.avgPrice||0) <= budgetMax)
   const minCount = parseInt($('filterMinCount')?.value || '0')
   if(minCount > 0) data = data.filter(a => (a.count||0) >= minCount)
@@ -4188,8 +4243,10 @@ function renderMapList(data) {
 }
 
 // 마커 표시 (순차 geocoding)
+let _mapRunId = 0
 function renderMapMarkers(data) {
-  const container = $('mapKakaoMap'); if(!container || !window.kakao?.maps) return
+  const container = $('mapKakaoMap')
+  if(!container || !window.kakao?.maps) { hideMapLoading(); return }
   if(!_mapInst) _mapInst = new kakao.maps.Map(container, {center: new kakao.maps.LatLng(37.5665, 126.9780), level:8})
   _mapMarkers.forEach(m=>m.setMap(null)); _mapMarkers = []
   if(!window._geoCache) window._geoCache = {}
@@ -4199,9 +4256,12 @@ function renderMapMarkers(data) {
   const ps = new kakao.maps.services.Places()
   const targets = data.slice(0,25)
   let idx = 0
+  const runId = ++_mapRunId
 
   function next() {
-    if(idx>=targets.length) return
+    if(runId !== _mapRunId) return // 필터가 바뀌어 새 렌더가 시작됨 — 이전 작업 중단
+    if(idx>=targets.length) { hideMapLoading(); return }
+    showMapLoading('지도에 단지 표시 중', `${idx}/${targets.length}개 위치 확인`, idx/targets.length*100)
     const apt = targets[idx++]
     // 공동중개 거래는 sigungu가 "서울 성동구, 서울 용산구"처럼 여러 구가 콤마로 붙어 나와서
     // 그대로 쓰면 주소 검색이 실패함 — 첫 번째 구만 사용
@@ -4234,7 +4294,7 @@ function renderMapViewFromCache() {
   if(!allAptData?.length) { renderMapView(); return }
   const sgg = $('filterSigungu')?.value || ''
   const sizeFilter = $('filterSize')?.value || ''
-  const sizeRangesMap = {'s59':[0,60],'s84':[60,85],'s114':[85,115],'s115':[115,999]}
+  const sizeRangesMap = SIZE_RANGES
   const budgetMax = parseInt($('filterBudget')?.value||'0') * 100000000
   const sortVal = $('sortBy')?.value || 'score_desc'
   let data = allAptData.map(a=>({...a, _score:a._score||calcAptScore(a)}))
